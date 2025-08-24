@@ -1,0 +1,13 @@
+{
+  "name": "@roidoya/chat-layer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": { "express": "^4.19.2" },
+  "devDependencies": { "typescript": "^5.5.4", "@types/express": "^4.17.21" }
+}
