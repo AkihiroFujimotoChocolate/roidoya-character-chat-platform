@@ -10,6 +10,33 @@ MIT-licensed.
 
 ---
 
+## Debugging .NET Applications in Visual Studio Code
+
+You can debug .NET applications in Visual Studio Code by following the official Microsoft documentation:
+
+**Reference:** [Debug a .NET console application using Visual Studio Code](https://learn.microsoft.com/en-us/dotnet/core/tutorials/debugging-with-visual-studio-code)
+
+### Steps to Debug
+
+1. **Open your project folder in Visual Studio Code.**
+2. **Set a breakpoint:**
+  - Open the file you want to debug (e.g., `Program.cs`).
+  - Click in the left margin next to the line number, or press `F9`.
+3. **Start debugging:**
+  - Open the Debug view by clicking the Debug icon on the left sidebar.
+  - Click "Run and Debug" and select the appropriate configuration (usually C#).
+  - Alternatively, press `F5` to start debugging.
+4. **Use the Debug Console:**
+  - Interact with your application and inspect/change variable values in the Debug Console tab.
+5. **Step through your code:**
+  - Use the toolbar or keyboard shortcuts (`F10` for Step Over, `F11` for Step Into, `Shift+F11` for Step Out) to step through your program.
+6. **Set conditional breakpoints:**
+  - Right-click a breakpoint and select "Edit Breakpoint" to add conditions.
+7. **Stop debugging:**
+  - Press `Shift+F5` or click the Stop button.
+
+For more details and screenshots, see the [official tutorial](https://learn.microsoft.com/en-us/dotnet/core/tutorials/debugging-with-visual-studio-code).
+
 ## Status
 
 - ✅ LINE gateway: **Echo Mode** implementation (Local runtime) with signature validation, event filtering, user locking, queue management, and LINE Reply API integration
