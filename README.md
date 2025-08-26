@@ -3,7 +3,7 @@
 A small, channel-agnostic chat stack designed for multi-channel bots and assistants.  
 This monorepo currently includes:
 
-- **gateway-line** (C#/.NET 8): minimal LINE webhook endpoint that verifies `X-Line-Signature` and returns **200 OK** for LINE’s “Webhook URL verification”.
+- **gateway-line** (C#/.NET 8): LINE webhook endpoint with **Echo Mode** on **Local** runtime. Validates `X-Line-Signature`, processes message events, implements user locking and queue management, and replies via LINE Reply API.
 - **chat-layer** (TypeScript/Node.js): minimal **Echo** service that returns the same text it receives. No channel-specific logic.
 
 MIT-licensed.
@@ -12,10 +12,10 @@ MIT-licensed.
 
 ## Status
 
-- ✅ LINE gateway: Webhook URL verification (HMAC, base64 signature)
-- ✅ Chat layer: Echo (no limits, no splitting, channel-agnostic)
-- ⏳ Next: gateway → chat wiring, HTTP mode, reply sending from gateway
-- ⏳ Future: Discord/X/Slack gateways, multi-cloud adapters (AWS/GCP), observability
+- ✅ LINE gateway: **Echo Mode** implementation (Local runtime) with signature validation, event filtering, user locking, queue management, and LINE Reply API integration
+- ✅ Chat layer: Echo (no limits, no splitting, channel-agnostic)  
+- ✅ Complete: gateway → chat wiring, Echo mode, reply sending from gateway
+- ⏳ Future: HTTP mode, Discord/X/Slack gateways, multi-cloud adapters (AWS/GCP), observability
 
 ---
 
@@ -24,7 +24,7 @@ MIT-licensed.
 ```
 roidoya-character-platform/
   /services
-    /gateway-line          # C# / .NET 8 (verify-only)
+    /gateway-line          # C# / .NET 8 (Echo Mode - Local runtime)
       /src/LineBot.Api
     /chat-layer            # TypeScript / Node.js (Echo-only)
       /src
@@ -50,42 +50,89 @@ roidoya-character-platform/
 - .NET 8 SDK
 - Node.js 20+
 
-### 1) Run the LINE gateway (verify-only)
+### 1) Run the LINE gateway (Echo Mode - Local runtime)
 
-Set your LINE **Channel Secret** (choose one of the two methods):
+**Configure LINE credentials** (choose one of the two methods):
 
-**A. appsettings**  
-Edit `services/gateway-line/src/LineBot.Api/appsettings.json`:
+**A. appsettings.Development.json**  
+Edit `services/gateway-line/src/LineBot.Api/appsettings.Development.json`:
 ```json
 {
-  "Line": { "ChannelSecret": "REPLACE_WITH_YOUR_CHANNEL_SECRET" }
+  "Line": { 
+    "ChannelSecret": "YOUR_CHANNEL_SECRET_FROM_LINE_CONSOLE",
+    "ChannelAccessToken": "YOUR_CHANNEL_ACCESS_TOKEN_FROM_LINE_CONSOLE" 
+  }
 }
 ```
 
-**B. Environment variable**  
+**B. Environment variables**  
 ```bash
 # Linux/macOS
-export Line__ChannelSecret='REPLACE_WITH_YOUR_CHANNEL_SECRET'
+export LINE_CHANNEL_SECRET='YOUR_CHANNEL_SECRET'
+export LINE_CHANNEL_ACCESS_TOKEN='YOUR_CHANNEL_ACCESS_TOKEN'
+
 # Windows (PowerShell)
-$env:Line__ChannelSecret='REPLACE_WITH_YOUR_CHANNEL_SECRET'
+$env:LINE_CHANNEL_SECRET='YOUR_CHANNEL_SECRET'
+$env:LINE_CHANNEL_ACCESS_TOKEN='YOUR_CHANNEL_ACCESS_TOKEN'
 ```
 
-Start the service:
+**Start the service:**
 ```bash
-dotnet run --project services/gateway-line/src/LineBot.Api
+cd services/gateway-line/src/LineBot.Api
+dotnet run
 ```
 
-Test the verification flow:
+The service will start on `http://localhost:5286` (or another port - check the console output).
+
+**Set up webhook URL (for real LINE integration):**
+
+1. **Development tunnel**: Use ngrok, devtunnel, or similar:
+   ```bash
+   # Option A: ngrok
+   ngrok http 5286
+   # Copy the https URL (e.g., https://abc123.ngrok.io)
+   
+   # Option B: devtunnel (Visual Studio / Azure)
+   devtunnel host -p 5286 --allow-anonymous
+   # Copy the https URL
+   ```
+
+2. **LINE Developers Console**: Set your webhook URL to `{tunnel_url}/line/webhook`
+   - Example: `https://abc123.ngrok.io/line/webhook`
+
+**Test the Echo functionality:**
+
+Health check:
 ```bash
-BODY='{"destination":"Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","events":[]}'
-SECRET='REPLACE_WITH_YOUR_CHANNEL_SECRET'
+curl http://localhost:5286/
+# → "LINE Webhook Gateway - Echo Mode (Local)"
+```
+
+Webhook simulation (replace `YOUR_CHANNEL_SECRET` with your actual secret):
+```bash
+BODY='{"destination":"Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","events":[{"type":"message","mode":"active","timestamp":1234567890123,"webhookEventId":"test-event-123","source":{"type":"user","userId":"U1234567890abcdef1234567890abcdef"},"replyToken":"test-reply-token","message":{"id":"1234567890123","type":"text","text":"Hello Echo!"}}]}'
+SECRET='YOUR_CHANNEL_SECRET'
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -binary | openssl base64)
 
-curl -i -X POST http://localhost:5000/line/webhook   -H "Content-Type: application/json"   -H "X-Line-Signature: $SIG"   --data "$BODY"
+curl -i -X POST http://localhost:5286/line/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-Line-Signature: $SIG" \
+  -H "X-Line-Request-Id: test-123" \
+  --data "$BODY"
 # Expect: HTTP/1.1 200 OK
+# Check logs for message processing
 ```
 
-> Note: This service only validates the signature and returns 200 OK for valid requests. It does not parse events or send replies yet.
+**What the gateway does:**
+- ✅ Validates LINE webhook signatures (HMAC-SHA256)  
+- ✅ Filters events (only processes text `message` events in `active` mode)
+- ✅ Implements user-level locking (prevents concurrent processing per user)
+- ✅ Manages local queue with capacity limits (default: 15 messages)
+- ✅ Background worker processes messages with QPS throttling (default: 5 QPS)
+- ✅ Echo chat: returns the same text, splitting long messages if needed (default: 1000 chars/message)
+- ✅ Sends replies via LINE Reply API (up to 5 messages per reply)
+- ✅ Handles redelivery with idempotency (avoids duplicate replies)
+- ✅ Comprehensive logging with X-Line-Request-Id support
 
 ---
 
@@ -109,12 +156,65 @@ curl -s http://localhost:8080/chat/v0.1/generate-replies   -H "Content-Type: app
 
 ## Minimal API reference
 
-### gateway-line (verify-only)
+### gateway-line (Echo Mode - Local)
+
+- **GET** `/`  
+  **Response**: `"LINE Webhook Gateway - Echo Mode (Local)"`  
+  Health check endpoint.
 
 - **POST** `/line/webhook`  
-  **Headers**: `X-Line-Signature: <base64 HMAC-SHA256(raw_body, channel_secret)>`  
-  **Body**: raw JSON from LINE (e.g., `{"destination":"...","events":[]}`)  
-  **200 OK** if signature is valid; **400** if missing/invalid; **500** if not configured.
+  **Headers**: 
+  - `X-Line-Signature: <base64 HMAC-SHA256(raw_body, channel_secret)>` (required)
+  - `X-Line-Request-Id: <request_id>` (optional, for logging)
+  - `Content-Type: application/json`
+  
+  **Body**: LINE webhook JSON payload
+  ```json
+  {
+    "destination": "Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "events": [
+      {
+        "type": "message",
+        "mode": "active",
+        "timestamp": 1234567890123,
+        "webhookEventId": "event-id-123",
+        "source": { "type": "user", "userId": "U123..." },
+        "replyToken": "reply-token-123",
+        "message": { "type": "text", "text": "Hello!" },
+        "deliveryContext": { "isRedelivery": false }
+      }
+    ]
+  }
+  ```
+  
+  **Responses:**
+  - **200 OK** — Event accepted and processed (or intentionally handled with busy/locked messaging)
+  - **400 Bad Request** — Invalid signature or malformed JSON  
+  - **500 Internal Server Error** — Configuration error
+
+  **Event Processing Logic:**
+  1. **Signature validation** — Verifies HMAC-SHA256 with `Line:ChannelSecret`
+  2. **Event filtering** — Only processes `message` events with `mode != "standby"` and `message.type == "text"`
+  3. **User locking** — Prevents concurrent processing; sends locked message if user is busy
+  4. **Queue management** — Enqueues for background processing; sends busy message if queue is full
+  5. **Background worker** — Processes with QPS throttling, calls Echo chat, sends reply via LINE API
+
+**Configuration Options (Environment Variables):**
+```bash
+# Required
+LINE_CHANNEL_SECRET="your-channel-secret"
+LINE_CHANNEL_ACCESS_TOKEN="your-access-token"
+
+# Optional (with defaults)
+RUNTIME_PLATFORM="Local"
+CHAT_MODE="Echo"
+CHAT_MAX_CHARS_PER_MESSAGE=1000
+LOCAL_QUEUE_MAXSIZE=15
+LOCAL_LOCKS_ENABLED=true
+REPLY_QPS=5.0
+LOCK_USER_TIMEOUT_SECONDS=300
+LOG_LEVEL="Information"
+```
 
 ### chat-layer (Echo v0.1)
 
@@ -142,11 +242,12 @@ curl -s http://localhost:8080/chat/v0.1/generate-replies   -H "Content-Type: app
 
 ## Roadmap (short)
 
-- Wire gateway → chat (HTTP call) for Echo mode
-- Add **HTTP mode** (chat-layer calls an external provider)
-- Implement LINE Reply API sending in gateway (respect channel limits there)
-- Add adapters for AWS (SQS/Dynamo), GCP (Pub/Sub/Firestore)
-- Observability (structured logs, health checks, metrics)
+- ✅ **Echo Mode (Local)** — Complete LINE webhook processing with local queue, user locks, and Echo replies
+- ⏳ **HTTP Mode** — Gateway calls external chat service via HTTP (gateway-line already supports this)
+- ⏳ **Cloud runtimes** — Azure Service Bus + Cosmos DB for multi-instance deployments  
+- ⏳ **Additional channels** — Discord/X/Slack gateways
+- ⏳ **Multi-cloud adapters** — AWS (SQS/DynamoDB), GCP (Pub/Sub/Firestore)
+- ⏳ **Observability** — Structured logs, health checks, metrics
 
 ---
 
