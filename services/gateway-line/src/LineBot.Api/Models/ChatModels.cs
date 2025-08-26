@@ -33,6 +33,7 @@ public class QueueItem
 
 public class ChatRequest
 {
+    public string? RequestId { get; set; }
     public string ApiVersion { get; set; } = "0.1";
     public ChatMessage Message { get; set; } = new();
     public ChatLimits Limits { get; set; } = new();
@@ -64,6 +65,7 @@ public class ChatAuthor
 
 public class ChatResponse
 {
+    public string? RequestId { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<string> Messages { get; set; } = new();
     public bool FallbackUsed { get; set; }

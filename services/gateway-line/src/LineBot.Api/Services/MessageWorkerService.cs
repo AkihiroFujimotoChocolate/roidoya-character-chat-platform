@@ -88,6 +88,7 @@ public class MessageWorkerService : BackgroundService
             // Generate chat response
             var chatRequest = new ChatRequest
             {
+                RequestId = Guid.NewGuid().ToString(),
                 ApiVersion = "0.1",
                 Message = new ChatMessage { Text = queueItem.MessageText },
                 Limits = new ChatLimits 
