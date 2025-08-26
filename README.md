@@ -57,6 +57,7 @@ roidoya-character-platform/
       /src
   /docs
     /specs                 # gateway-line spec document(s)
+    /issues                # issues for Copilot Coding Agent
   LICENSE
   README.md
 ```
