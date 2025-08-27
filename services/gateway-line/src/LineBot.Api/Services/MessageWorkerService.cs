@@ -102,7 +102,7 @@ public class MessageWorkerService : BackgroundService
 
             var chatResponse = await chatService.GenerateReplyAsync(chatRequest, cancellationToken);
 
-            if (chatResponse.Status == "ok" && chatResponse.Messages.Count > 0)
+            if (chatResponse.Messages.Count > 0)
             {
                 // Send reply via LINE API
                 var success = await replyService.SendReplyAsync(
@@ -127,7 +127,7 @@ public class MessageWorkerService : BackgroundService
             }
             else
             {
-                _logger.LogWarning("Chat service returned non-ok status or no messages for WebhookEventId={WebhookEventId}, Status={Status}", 
+                _logger.LogWarning("Chat service returned no messages for WebhookEventId={WebhookEventId}, Status={Status}", 
                     queueItem.WebhookEventId, chatResponse.Status);
             }
         }

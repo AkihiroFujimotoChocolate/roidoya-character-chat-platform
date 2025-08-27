@@ -15,7 +15,7 @@ app.use(express.json()); // default 100kb limit
 
 app.get("/", (_req, res) => res.send("Roidoya Chat Layer — Echo v0.1"));
 
-app.post("/chat/v0.1/generate-replies", (req, res) => {
+app.post("/chat/v0.1/generate-replies", async (req, res) => {
   const body = req.body as ChatRequest | undefined;
   const requestId = body?.request_id;
   const text = body?.message?.text;
@@ -27,6 +27,30 @@ app.post("/chat/v0.1/generate-replies", (req, res) => {
       error: { code: "bad_request", message: "message.text is required" },
     };
     return res.status(400).json(bad);
+  }
+
+  // Test: "fail" returns 400
+  if (text === "fail") {
+    const bad: ChatResponse = {
+      request_id: requestId,
+      status: "provider_error",
+      error: { code: "fail_test", message: "Triggered fail test" },
+    };
+    return res.status(400).json(bad);
+  }
+
+  // Test: "waitNs" waits N seconds
+  const waitNsMatch = text.match(/^wait(\d+)s$/);
+  if (waitNsMatch) {
+    const seconds = parseInt(waitNsMatch[1], 10);
+    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+  }
+
+  // Test: "waitNms" waits N milliseconds
+  const waitNmsMatch = text.match(/^wait(\d+)ms$/);
+  if (waitNmsMatch) {
+    const ms = parseInt(waitNmsMatch[1], 10);
+    await new Promise(resolve => setTimeout(resolve, ms));
   }
 
   const ok: ChatResponse = {
