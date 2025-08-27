@@ -9,17 +9,40 @@ using LineBot.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
+builder.Services.AddHttpClient<HttpChatService>();
 builder.Services.AddHttpClient<ILineReplyService, LineReplyService>();
 builder.Services.AddSingleton<ILocalQueueService, LocalQueueService>();
 builder.Services.AddSingleton<IUserLockService, UserLockService>();
 builder.Services.AddSingleton<IIdempotencyService, IdempotencyService>();
-builder.Services.AddScoped<IChatService, EchoChatService>();
+
+// Register chat service based on mode
+builder.Services.AddScoped<IChatService>(serviceProvider =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var chatMode = configuration.GetValue<string>("Chat:Mode", "Echo");
+    
+    return (chatMode ?? "Echo").ToLowerInvariant() switch
+    {
+        "http" => serviceProvider.GetRequiredService<HttpChatService>(),
+        "echo" => serviceProvider.GetRequiredService<EchoChatService>(),
+        _ => throw new InvalidOperationException($"Unsupported Chat:Mode: {chatMode}")
+    };
+});
+
+// Register individual chat services
+builder.Services.AddScoped<EchoChatService>();
+builder.Services.AddScoped<HttpChatService>();
 builder.Services.AddHostedService<MessageWorkerService>();
 
 var app = builder.Build();
 
 // Health probe
-app.MapGet("/", () => Results.Ok("LINE Webhook Gateway - Echo Mode (Local)"));
+app.MapGet("/", (IConfiguration cfg) => 
+{
+    var chatMode = cfg.GetValue<string>("Chat:Mode", "Echo");
+    var platform = cfg.GetValue<string>("Runtime:Platform", "Local");
+    return Results.Ok($"LINE Webhook Gateway - {chatMode} Mode ({platform})");
+});
 
 // POST /line/webhook — enhanced implementation with Echo Mode
 app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILoggerFactory lf, 

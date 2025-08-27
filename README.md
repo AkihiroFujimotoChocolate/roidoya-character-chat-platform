@@ -78,7 +78,13 @@ roidoya-character-platform/
 - .NET 8 SDK
 - Node.js 20+
 
-### 1) Run the LINE gateway (Echo Mode - Local runtime)
+### 1) Run the LINE gateway (Local runtime)
+
+The gateway supports two modes:
+- **Echo Mode** — Returns the user's text unchanged (for testing)
+- **HTTP Mode** — Forwards to external chat layer service via HTTP
+
+#### Option A: Echo Mode (Testing)
 
 **Configure LINE credentials** (choose one of the two methods):
 
@@ -151,7 +157,76 @@ curl -i -X POST http://localhost:5286/line/webhook \
 # Check logs for message processing
 ```
 
-**What the gateway does:**
+**What the gateway does (both modes):**
+- ✅ Validates LINE webhook signatures (HMAC-SHA256)  
+- ✅ Filters events (only processes text `message` events in `active` mode)
+- ✅ Implements user-level locking (prevents concurrent processing per user)
+- ✅ Manages local queue with capacity limits (default: 15 messages)
+- ✅ Background worker processes messages with QPS throttling (default: 5 QPS)
+- ✅ **Echo chat**: returns the same text, splitting long messages if needed (default: 1000 chars/message)
+- ✅ **HTTP chat**: forwards to external service with v0.1 wire protocol, handles timeouts/errors
+- ✅ Sends replies via LINE Reply API (up to 5 messages per reply)
+- ✅ Handles redelivery with idempotency (avoids duplicate replies)
+- ✅ Comprehensive logging with X-Line-Request-Id support
+
+#### Option B: HTTP Mode (Production)
+
+For HTTP mode, you need a running chat layer service. This example uses the built-in echo service:
+
+**1. Start the chat layer service:**
+```bash
+cd services/chat-layer
+npm install && npm run build && npm start
+# → chat-layer echo listening on 8080
+```
+
+**2. Configure the gateway for HTTP mode:**
+
+Edit `services/gateway-line/src/LineBot.Api/appsettings.Development.json`:
+```json
+{
+  "Line": { 
+    "ChannelSecret": "YOUR_CHANNEL_SECRET_FROM_LINE_CONSOLE",
+    "ChannelAccessToken": "YOUR_CHANNEL_ACCESS_TOKEN_FROM_LINE_CONSOLE" 
+  },
+  "Chat": {
+    "Mode": "Http",
+    "Http": {
+      "BaseUrl": "http://localhost:8080"
+    }
+  }
+}
+```
+
+Or use environment variables:
+```bash
+export CHAT_MODE=Http
+export CHAT_HTTP_BASEURL=http://localhost:8080
+```
+
+**3. Start the gateway:**
+```bash
+cd services/gateway-line/src/LineBot.Api
+dotnet run
+# → LINE Webhook Gateway - Http Mode (Local)
+```
+
+**Test HTTP mode integration:**
+```bash
+# Test chat layer directly
+curl -s http://localhost:8080/chat/v0.1/generate-replies \
+  -H "Content-Type: application/json" \
+  -d '{"request_id":"r1","message":{"text":"hello world"}}'
+# → {"request_id":"r1","status":"ok","messages":["hello world"],"fallback_used":false}
+
+# Test gateway health (should show "Http Mode")
+curl -s http://localhost:5286/
+# → "LINE Webhook Gateway - Http Mode (Local)"
+```
+
+---
+
+**What the gateway does (Echo mode):**
 - ✅ Validates LINE webhook signatures (HMAC-SHA256)  
 - ✅ Filters events (only processes text `message` events in `active` mode)
 - ✅ Implements user-level locking (prevents concurrent processing per user)
@@ -184,11 +259,11 @@ curl -s http://localhost:8080/chat/v0.1/generate-replies   -H "Content-Type: app
 
 ## Minimal API reference
 
-### gateway-line (Echo Mode - Local)
+### gateway-line (Local runtime)
 
 - **GET** `/`  
-  **Response**: `"LINE Webhook Gateway - Echo Mode (Local)"`  
-  Health check endpoint.
+  **Response**: `"LINE Webhook Gateway - {Mode} Mode (Local)"` where Mode is `Echo` or `Http`  
+  Health check endpoint showing current configuration.
 
 - **POST** `/line/webhook`  
   **Headers**: 
@@ -233,10 +308,20 @@ curl -s http://localhost:8080/chat/v0.1/generate-replies   -H "Content-Type: app
 LINE_CHANNEL_SECRET="your-channel-secret"
 LINE_CHANNEL_ACCESS_TOKEN="your-access-token"
 
+# Chat Mode Selection
+CHAT_MODE="Echo"  # or "Http"
+
+# HTTP Mode Settings (when CHAT_MODE=Http)
+CHAT_HTTP_BASEURL="http://localhost:8080"
+CHAT_HTTP_ENDPOINT_TEMPLATE="/chat/{version}/generate-replies"  # optional
+CHAT_HTTP_API_KEY="your-api-key"  # optional
+CHAT_HTTP_VERSION_HEADER="X-Chat-Api-Version"  # optional
+
 # Optional (with defaults)
 RUNTIME_PLATFORM="Local"
-CHAT_MODE="Echo"
+CHAT_API_VERSION="0.1"
 CHAT_MAX_CHARS_PER_MESSAGE=1000
+CHAT_REQUEST_TIMEOUT_SECONDS=20
 LOCAL_QUEUE_MAXSIZE=15
 LOCAL_LOCKS_ENABLED=true
 REPLY_QPS=5.0
@@ -271,7 +356,7 @@ LOG_LEVEL="Information"
 ## Roadmap (short)
 
 - ✅ **Echo Mode (Local)** — Complete LINE webhook processing with local queue, user locks, and Echo replies
-- ⏳ **HTTP Mode** — Gateway calls external chat service via HTTP (gateway-line already supports this)
+- ✅ **HTTP Mode (Local)** — Gateway forwards to external chat service via HTTP with v0.1 wire protocol
 - ⏳ **Cloud runtimes** — Azure Service Bus + Cosmos DB for multi-instance deployments  
 - ⏳ **Additional channels** — Discord/X/Slack gateways
 - ⏳ **Multi-cloud adapters** — AWS (SQS/DynamoDB), GCP (Pub/Sub/Firestore)
