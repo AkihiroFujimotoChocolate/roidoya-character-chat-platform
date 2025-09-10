@@ -10,10 +10,10 @@ public static class WebhookHelper
         // Create a unique key for user locking
         return source.Type switch
         {
-            "user" => $"user:{source.UserId}",
-            "group" => $"group:{source.GroupId}",
-            "room" => $"room:{source.RoomId}",
-            _ => $"unknown:{source.Type}"
+            "user" => $"user-{source.UserId}",
+            "group" => $"group-{source.GroupId}",
+            "room" => $"room-{source.RoomId}",
+            _ => $"unknown-{source.Type}"
         };
     }
 

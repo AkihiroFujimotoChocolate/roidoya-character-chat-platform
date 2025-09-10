@@ -153,6 +153,7 @@ Configurations are provided via `appsettings.*` and/or environment variables. Ke
 | `Chat:Fallbacks:Default`         | `CHAT_FALLBACK_DEFAULT`          | String              | Yes                   | Generic fallback text returned by the chat layer on errors/refusals.                                                                                           |
 | `Chat:Fallbacks:ContentFiltered` | `CHAT_FALLBACK_CONTENT_FILTERED` | String              | No                    | Optional override when content is refused by safety policy.                                                                                                    |
 | `Chat:Fallbacks:Timeout`         | `CHAT_FALLBACK_TIMEOUT`          | String              | No                    | Optional override used on provider timeout.                                                                                                                    |
+| `Chat:AuthorUserIdPrefix`   | `CHAT_AUTHOR_USERID_PREFIX` | String | No       | `line-` | Prefix to prepend to `author.user_id` when forwarding to Chat Layer.        |
 
 #### HTTP Forwarding (when `Chat:Mode = Http`)
 
