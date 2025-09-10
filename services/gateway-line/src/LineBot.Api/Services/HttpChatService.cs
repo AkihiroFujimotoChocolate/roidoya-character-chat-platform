@@ -146,6 +146,9 @@ public class HttpChatService : IChatService
 
     private HttpRequestMessage BuildHttpRequest(ChatRequest request, string url)
     {
+        // Optionally prepend a prefix to the author user ID
+        var userIdPrefix = _configuration.GetValue<string>("Chat:AuthorUserIdPrefix", "line-");
+
         // Build the v0.1 wire protocol request
         var wireRequest = new
         {
@@ -153,7 +156,7 @@ public class HttpChatService : IChatService
             event_id = "", // Not used in current implementation
             origin = new { platform = "line" },
             conversation = new { id = request.Conversation.Id },
-            author = new { user_id = request.Author.UserId },
+            author = new { user_id = userIdPrefix + request.Author.UserId },
             message = new 
             { 
                 text = request.Message.Text,
