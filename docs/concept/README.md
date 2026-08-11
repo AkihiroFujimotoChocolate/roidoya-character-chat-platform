@@ -4,11 +4,11 @@
 
 This document defines the high-level concept of the Roidoya Character Chat Platform (RCCP).
 
-The purpose, goals, design principles, and non-goals described here form a stable foundation for RCCP and are expected to change only when there is a strong reason to reconsider the direction of the platform.
+The purpose, goals, role-specific values, design principles, and non-goals described here form a stable foundation for RCCP and are expected to change only when there is a strong reason to reconsider the direction of the platform.
 
 This document describes what RCCP is intended to become. It does not describe the feature set or maturity of the current implementation.
 
-Detailed roles, role-specific value, system architecture, APIs, data models, protocols, deployment models, cloud services, and specific implementation techniques are defined separately and may evolve as RCCP develops.
+Detailed role definitions, system architecture, APIs, data models, protocols, deployment models, cloud services, and specific implementation techniques are defined separately and may evolve as RCCP develops.
 
 ## Purpose
 
@@ -34,9 +34,167 @@ RCCP aims to provide a foundation for character services that can:
 
 The current focus of RCCP is text-based conversation. These goals do not require every service to provide the same features or the same form of character experience.
 
+## Value for End Users
+
+RCCP aims to support character experiences that End Users can engage with consistently and reliably over time.
+
+### Consistent Character Identity
+
+RCCP should make it possible for End Users to interact with a character that maintains an intended personality, values, speaking style, world setting, and other defining qualities rather than behaving merely as a generic response system.
+
+RCCP does not itself guarantee that a character will be compelling or well designed. It should, however, make the intended character identity easier to express, maintain, and validate.
+
+### Continuity Over Time
+
+Character interactions should not have to exist only as isolated exchanges.
+
+Depending on the design of the character and service, past interactions or state may carry forward into later experiences.
+
+RCCP should support this kind of continuity without requiring every character service to use the same relationship model.
+
+### Reliable Experiences
+
+End Users should be able to engage with character services without the experience being unnecessarily disrupted or degraded by technical failures, overload, duplicate processing, or other technical problems.
+
+RCCP should treat reliable availability not merely as an operational quality, but as one of the conditions required to sustain the intended character experience.
+
+### Diverse Forms of Interaction
+
+The current focus of RCCP is text-based conversation, but character experiences should not be limited to free-form conversation.
+
+Depending on the service, experiences may include information delivery, stories, games, events, integrations with external capabilities, and other forms of interaction.
+
+This does not mean that RCCP must provide every possible form of interaction as a standard capability. The experiences provided may differ from service to service.
+
+### Experiences That Can Improve Over Time
+
+Character services may be operated over long periods of time.
+
+RCCP should make it possible to review and validate changes and to continuously improve character experiences without unnecessarily damaging existing character identity or experience.
+
+## Value for Content Creators
+
+RCCP aims to support Content Creators in expressing, reviewing, and maintaining the intended character and character experience, and in continuously improving them through ongoing operation.
+
+### Express and Maintain the Intended Character
+
+Content Creators should be able to reflect intended personality, values, speaking style, world setting, behavior, and other character qualities in the service.
+
+They should also be able to review how those intentions appear in actual behavior, validate the results, and adjust them when necessary.
+
+### Build Experiences Appropriate to Each Character
+
+Character experiences should not be limited to free-form conversation.
+
+Depending on the character or service, experiences may combine stories, events, quests, games, information delivery, integrations with external capabilities, and other forms of interaction.
+
+RCCP should not require every character to follow the same experience model.
+
+### Design Continuity
+
+Content Creators should be able to design how interactions continue over time according to the character and service.
+
+Past interactions, events, relationships, story or quest progression, and character state are examples of concepts that may contribute to continuity.
+
+RCCP should make reusable approaches and patterns available without requiring every service to adopt a single relationship model. Individual services should be able to select, combine, adjust, and extend the elements they need.
+
+### Work Directly Within Their Area of Expertise
+
+Content Creators should be able to create, review, modify, and improve character settings and experience design within their own area of expertise without being unnecessarily dependent on technical implementation.
+
+Where technical expertise is required, responsibilities should be appropriately shared with Developers and other roles.
+
+### Work Within Appropriate Guardrails
+
+Content Creators should be able to focus on creating, reviewing, and improving character experiences within appropriately designed boundaries for safety, permissions, allowed use, and other service-specific constraints, without having to continually worry about underlying technical safety concerns or unexpected execution and costs.
+
+The specific boundaries and constraints should be determined according to the requirements of each service by Developers and System Operators. RCCP should not impose uniform restrictions on the purposes or capabilities of every service.
+
+### Continuously Review and Improve
+
+Character definitions and character experiences may continue to change after a service is released.
+
+Content Creators should be able to review not only the changes themselves, but also information needed to understand how the experience is working in practice, including actual usage, user responses, the state of the character experience, and the effects of changes.
+
+This information should support continued improvement without unnecessarily damaging the intended character identity or experience.
+
+Some information, such as usage patterns, failures, usage volume, or costs, may also be used by System Operators and Developers. For Content Creators, such information should be available in a form useful for judging whether the character experience is working as intended and how it is being received by End Users.
+
+## Value for System Operators
+
+RCCP aims to support System Operators in continuously and reliably delivering character experiences in production, understanding and maintaining the state and boundaries of the service, responding to problems, and contributing to continued improvement.
+
+### Provide Stable Experiences and Recover from Problems
+
+System Operators should be able to keep character experiences continuously and reliably available in production.
+
+When failures or abnormal conditions occur, they should be able to limit unnecessary impact and take appropriate actions such as stopping the affected service or capability, operating in a degraded mode, restoring service, or otherwise recovering from the problem.
+
+Reliable operation is not merely a matter of keeping infrastructure running. It means maintaining a state in which the character experiences delivered to End Users are not unnecessarily damaged by technical problems.
+
+### Understand What Is Happening During Operation
+
+System Operators should be able to understand the state of the production environment, processing activity, load, use of resources and external services, costs, abnormal conditions, and the scope of their impact well enough to decide what action is needed.
+
+This high-level concept does not prescribe specific observability mechanisms such as logs, metrics, traces, or dashboards.
+
+### Apply Changes Safely
+
+System Operators should be able to apply changes to services and character experiences safely while understanding their effects on existing experiences.
+
+If a change causes problems, they should be able to stop, correct, or recover from it appropriately.
+
+Changes may include not only code, but also character definitions, experience design, models, external capabilities, and other elements depending on the service.
+
+### Maintain Service-Specific Boundaries
+
+System Operators should be able to monitor and maintain the boundaries defined for each service and respond when those boundaries are exceeded.
+
+Such boundaries may concern safety, permissions, allowed use, data access, resource consumption, costs, and other service-specific constraints.
+
+RCCP should not impose the same boundaries or fixed limits on every service. Developers and System Operators should be able to define them according to the requirements of each service.
+
+### Use Operational Information for Continuous Improvement
+
+Information gained from production operation, including system state, usage, problems, and the effects of changes, should be usable by Developers and Content Creators to support continued improvement of both the service and the character experience.
+
+System Operators and Content Creators may use some of the same underlying information, but for different purposes.
+
+System Operators primarily need to determine whether the service and system are operating normally, safely, and sustainably. Content Creators primarily need to determine whether the character experience is working as intended and how it is being received by End Users.
+
+RCCP should make relevant information available in forms and scopes appropriate to the decisions each role needs to make.
+
+## Value for Developers
+
+RCCP aims to support Developers in building character services by reusing common technical foundations and mechanisms for reliable operation, while retaining the flexibility to meet service-specific requirements and adopt changing technologies, and while allowing systems to evolve without unnecessarily disrupting existing use.
+
+### Reuse Common Technical Foundations and Mechanisms for Reliable Operation
+
+Developers should be able to reduce the need to repeatedly design and implement from scratch the technical mechanisms commonly required by character services and the mechanisms needed to operate them reliably in production.
+
+RCCP should provide reusable foundations for problems that commonly recur across services, allowing Developers to devote more effort to service-specific design and implementation.
+
+This high-level concept does not prescribe which specific capabilities or mechanisms must be provided as standard parts of RCCP.
+
+### Build and Extend Systems Without Unnecessary Technology Constraints
+
+Developers should be able to use RCCP's standard mechanisms without being forced to shape service design or technology choices around them unnecessarily.
+
+Depending on the character, service, technical requirements, external capabilities, and emerging technologies, Developers should be able to combine, modify, replace, and extend the parts they need.
+
+Standardizing common functionality should not eliminate the freedom required by individual services or prevent Developers from adopting new technologies.
+
+### Evolve Systems While Limiting the Impact of Change
+
+Models, external services, channels, configuration, capabilities, and other parts of a system may be added or changed as a service evolves and technologies advance.
+
+Developers should be able to keep the effects of such changes within the areas that actually need to change, rather than unnecessarily propagating them into existing functionality, contracts, usage patterns, or character experiences that are unrelated to the change.
+
+RCCP should support continued evolution while allowing the results of changes to be reviewed and validated and while preserving existing use where it does not need to change.
+
 ## Design Principles
 
-The following principles guide RCCP's more detailed architecture, specifications, and implementation. They define long-term design direction without fixing specific service boundaries, protocols, products, or deployment technologies.
+The following principles guide RCCP's more detailed architecture, specifications, and implementation. They define long-term design direction without fixing concrete service decomposition, protocols, products, or deployment technologies.
 
 ### Keep Responsibilities and Boundaries Clear
 
@@ -114,7 +272,6 @@ RCCP is intended to provide reusable orchestration samples and templates, as wel
 This high-level concept intentionally leaves several areas to more detailed concept, architecture, and specification work, including:
 
 - Detailed definitions of the roles involved in RCCP-based services.
-- The value RCCP aims to provide to developers, system operators, content creators, and end users.
 - The scope of the RCCP core and the boundary between standard and extensible functionality.
 - The boundary between RCCP, external services, and character-specific content.
 - Concrete service boundaries, communication mechanisms, implementation technologies, and deployment models for Channel Adapters, Orchestration, Core Services, and other architectural areas.
