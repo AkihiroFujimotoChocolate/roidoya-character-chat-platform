@@ -68,7 +68,7 @@ This does not mean that RCCP must provide every possible form of interaction as 
 
 ### Experiences That Can Improve Over Time
 
-Character experiences may be operated over long periods of time.
+Character services may be operated over long periods of time.
 
 RCCP should make it possible to review and validate changes and to continuously improve character experiences without unnecessarily damaging existing character identity or experience.
 
@@ -118,7 +118,7 @@ Content Creators should be able to review not only the changes themselves, but a
 
 This information should support continued improvement without unnecessarily damaging the intended character identity or experience.
 
-Some information, such as usage, failures, usage volume, or costs, may also be used by System Operators and Developers. For Content Creators, such information should be available in a form useful for judging whether the character experience is working as intended and how it is being received by End Users.
+Some information, such as usage patterns, failures, usage volume, or costs, may also be used by System Operators and Developers. For Content Creators, such information should be available in a form useful for judging whether the character experience is working as intended and how it is being received by End Users.
 
 ## Value for System Operators
 
@@ -134,7 +134,7 @@ Reliable operation is not merely a matter of keeping infrastructure running. It 
 
 ### Understand What Is Happening During Operation
 
-System Operators should be able to understand the state of the production environment, processing activity, load, use of resources and external services, costs, abnormal conditions, and their scope of impact well enough to decide what action is needed.
+System Operators should be able to understand the state of the production environment, processing activity, load, use of resources and external services, costs, abnormal conditions, and the scope of their impact well enough to decide what action is needed.
 
 This high-level concept does not prescribe specific observability mechanisms such as logs, metrics, traces, or dashboards.
 
