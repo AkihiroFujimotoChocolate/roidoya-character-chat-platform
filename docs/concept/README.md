@@ -246,6 +246,14 @@ In particular, changes made for infrastructure or operational reasons should not
 
 RCCP may use cloud-specific or technology-specific mechanisms where they are useful. Their dependencies should be localized to the implementation boundaries that actually require them.
 
+### Keep Consequential Engineering Decisions Explicit
+
+RCCP should reduce unnecessary implementation work without obscuring consequential engineering and operational decisions required for production services.
+
+Decisions concerning security, authorization, deployment, data boundaries, external side effects, reliability, and other service-specific production concerns should remain explicit and should be owned by the Developers and System Operators responsible for the service rather than being silently replaced by implicit defaults or assumptions.
+
+Reusable mechanisms, templates, automation, and reference configurations may support those decisions, but should not make consequential production behavior appear to have been decided when it has not.
+
 ### Prefer Established Terminology
 
 RCCP should use established terminology from software engineering, system design, and related technical fields whenever those terms accurately express the intended concept.
