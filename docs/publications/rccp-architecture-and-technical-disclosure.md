@@ -1,11 +1,11 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
-**Status:** First Public Edition  
-**Edition:** 2026-08-09  
-**Publication date:** 2026-08-09 (Asia/Tokyo)  
+**Status:** Second Public Edition  
+**Edition:** 2026-08-12  
+**Publication date:** 2026-08-12 (Asia/Tokyo)  
 **Author:** Akihiro Fujimoto  
 **Project:** Roidoya Character Chat Platform (RCCP)  
-**Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-platform`  
+**Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`  
 **Canonical path:** `docs/publications/rccp-architecture-and-technical-disclosure.md`  
 **License:** MIT License, consistent with the repository license unless otherwise stated
 
@@ -33,7 +33,7 @@ This disclosure focuses on technical arrangements for:
 - maintaining correctness in horizontally scaled or multi-instance deployments;
 - controlling duplicate processing, concurrency, backlog, rate limits, and external-provider failures;
 - allowing content creators to modify character-specific experience flows without requiring infrastructure changes;
-- keeping development and production execution paths sufficiently aligned to reduce environment-specific behavior;
+- defining production execution against supported cloud infrastructure while localizing cloud-specific dependencies behind stable application boundaries;
 - providing concrete and alternative implementation forms rather than requiring a single deployment topology, storage product, workflow engine, or model provider.
 
 RCCP does not require every deployment to use every component described here. Components may be combined, omitted, replaced, embedded in another process, or deployed independently when the resulting arrangement preserves the required responsibility and contract boundaries.
@@ -788,7 +788,7 @@ The distinction between required and optional effects should be explicit in work
 
 ## 14. Infrastructure responsibilities
 
-RCCP may use existing managed cloud services or self-hosted equivalents for generic infrastructure functions rather than reimplementing them.
+Production RCCP deployments use supported cloud infrastructure for generic infrastructure responsibilities rather than relying on RCCP-specific reimplementations of those capabilities.
 
 Required properties can include:
 
@@ -803,6 +803,10 @@ Required properties can include:
 - hosting and autoscaling;
 - backup and disaster recovery.
 
+RCCP should rely on security and operational capabilities provided by the selected supported cloud infrastructure where those capabilities are not specific to RCCP. It should avoid unnecessarily duplicating, bypassing, or weakening those mechanisms.
+
+Developers and System Operators remain responsible for selecting, configuring, and operating the supported infrastructure profile for their service.
+
 The architecture should specify required properties before binding a logical responsibility to a specific cloud product.
 
 ### 14.1 Infrastructure adapter/library
@@ -813,18 +817,11 @@ This library need not hide every difference among cloud platforms.
 
 Cloud-specific features may be used when they provide clear value, provided the dependency is localized so unrelated character workflows and channel-neutral contracts do not become cloud-specific.
 
-## 15. Development and production execution
+## 15. Production execution requirements
 
-A preferred embodiment uses the same application code, SDKs, adapters, and contracts in development and production, while changing the connected infrastructure through configuration.
+Production RCCP deployments require supported cloud infrastructure that provides the generic infrastructure properties required by the selected deployment profile.
 
-Examples:
-
-- application uses the same queue adapter against a cloud queue in production and an official emulator/local runtime in development;
-- application uses the same storage client against a test account, emulator, or compatible local implementation;
-- application uses the same model-service contract with a deterministic test provider during automated tests;
-- application uses in-memory fakes only at unit-test boundaries rather than as the ordinary local runtime architecture.
-
-This reduces the number of production-only code paths.
+Development-only components or substitutes do not establish production readiness. Production behavior that depends on shared persistence, identity, secrets, networking, failure handling, observability, backup/recovery, or other infrastructure properties must satisfy the corresponding production requirements.
 
 ### 15.1 Small production deployments
 
@@ -833,6 +830,8 @@ A small number of users does not make a development-only component production-gr
 A personal or small-team character service can use a smaller production deployment while still providing the persistence, secrets handling, backup, authentication, and failure behavior required for production use.
 
 ## 16. Deployment embodiments
+
+The following are logical deployment embodiments. When used for Production RCCP, they are realized within a supported cloud infrastructure profile that satisfies the required production properties.
 
 ### 16.1 Compact deployment
 
@@ -1206,12 +1205,11 @@ The following alternatives are specifically disclosed as implementable choices. 
 
 ### 24.10 Infrastructure
 
-- managed cloud services;
-- self-hosted infrastructure;
-- official local emulators/runtimes for development;
-- compatible local implementations when official ones are unavailable;
+- supported cloud infrastructure profiles;
+- cloud-managed or cloud-hosted infrastructure capabilities that satisfy required properties;
 - cloud-specific adapters localized behind application boundaries;
-- multiple cloud reference deployments sharing platform-level contracts.
+- multiple supported cloud profiles sharing platform-level contracts;
+- infrastructure-as-code and deployment automation for supported profiles.
 
 ## 25. Explicit combination disclosures
 
@@ -1245,9 +1243,9 @@ A workflow allows a model or deterministic logic to request a tool. Tool Service
 
 Before generation, orchestration retrieves recent conversation context, selected durable memories, explicit relationship state, and relevant external knowledge. Each source remains independently replaceable and is combined only for the current interaction context.
 
-### Combination H — Development/production path alignment
+### Combination H — Stable RCCP contracts with supported-cloud bindings
 
-The same Channel Adapter, orchestration code, Core Service interfaces, and infrastructure adapters run in both development and production. Configuration selects production managed services, test accounts, official emulators/local runtimes, or validated compatible local services. In-memory test doubles are limited to test boundaries.
+The same Channel Adapter, orchestration code, Core Service interfaces, and application-level contracts can be used across supported cloud profiles while cloud-specific infrastructure adapters bind each production deployment to the selected profile. Identity, secrets, messaging, persistence, networking, observability, and related generic infrastructure capabilities are supplied by that profile without making cloud-specific details part of character workflows or channel-neutral contracts.
 
 ### Combination I — Versioned content and versioned interfaces
 
@@ -1410,7 +1408,6 @@ These extensions do not require the platform-wide message contract to adopt any 
 For implementation-specific details already present in the repository, see the public project documentation, including:
 
 - `README.md`
-- `docs/specs/gateway-line.spec.md`
 - the source code under `services/gateway-line/`
 - the source code under `services/chat-layer/`
 
@@ -1430,7 +1427,7 @@ Later editions may:
 - correct errors;
 - document newer alternatives.
 
-A later change to RCCP's preferred implementation does not withdraw the implementable alternatives described in an earlier published edition.
+A later edition may revise RCCP's current preferred or supported implementation while earlier published editions remain part of the historical technical disclosure. An earlier embodiment remains a disclosed historical alternative even when a later edition no longer presents it as a current supported deployment option.
 
 Published editions should remain recoverable through repository history and fixed publication artifacts rather than rewriting historical publication records.
 
@@ -2914,7 +2911,7 @@ This separates fine-grained AI conversational branching from long-lived durable 
 
 ### Combination AG — Telegram dual-ingress adapter with one RCCP core
 
-One deployment uses Telegram webhooks in production and `getUpdates` polling in a development or restricted-network profile. Both paths produce the same normalized interaction and use `update_id` as channel idempotency/order metadata. No Character, Memory, Orchestration, or Model Service changes when the ingress mode changes.
+One deployment uses Telegram webhooks while another uses `getUpdates` polling. Both paths produce the same normalized interaction and use `update_id` as channel idempotency/order metadata. No Character, Memory, Orchestration, or Model Service changes when the ingress mode changes.
 
 ### Combination AH — offline memory/evaluation engine separated from interactive runtime
 
