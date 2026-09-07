@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
-**Status:** Second Public Edition  
-**Edition:** 2026-08-12  
-**Publication date:** 2026-08-12 (Asia/Tokyo)  
+**Status:** Third Public Edition  
+**Edition:** 2026-09-07  
+**Publication date:** 2026-09-07 (Asia/Tokyo)  
 **Author:** Akihiro Fujimoto  
 **Project:** Roidoya Character Chat Platform (RCCP)  
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`  
@@ -11,9 +11,9 @@
 
 ## Abstract
 
-Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, cross-channel identity, public-room continuity, and multiple concrete implementations using workflow engines, managed cloud services, messaging platforms, queues, and model APIs. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures.
+Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, and multiple concrete implementations using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, and model APIs. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures.
 
-**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; provider-neutral model service; tool mediation; live-chat character system; derived-state migration; execution provenance
+**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; live-chat character system; derived-state migration; execution provenance
 
 > This document describes implementable technical architectures and embodiments for building and operating character-chat services with RCCP. It includes both implemented and not-yet-implemented arrangements. A described embodiment does not imply that it is currently implemented, selected as the only supported architecture, or claimed to be novel.
 
@@ -29,6 +29,9 @@ This disclosure focuses on technical arrangements for:
 - composing character experiences through orchestration;
 - exposing reusable character-related capabilities as replaceable services or modules;
 - maintaining continuity across interactions through memory, relationship state, workflow state, event state, or combinations of them;
+- representing world facts, character beliefs, actor memories, and relationships through ontologies, knowledge graphs, portable knowledge bundles, or equivalent structured records;
+- coordinating direct, group, room, broadcast, many-to-many, and character-to-character interactions without collapsing their participant, speaker, audience, or privacy scopes;
+- linking channel-local identities while authorizing cross-channel reuse separately by topic, relationship, character, destination, audience, purpose, and time;
 - preserving stable contracts while allowing implementations and infrastructure to change;
 - maintaining correctness in horizontally scaled or multi-instance deployments;
 - controlling duplicate processing, concurrency, backlog, rate limits, and external-provider failures;
@@ -52,6 +55,10 @@ Representative problems include:
 6. **Interfaces outlive implementations.** Services, providers, databases, workflow engines, and deployment environments may change while existing channels and content should continue operating.
 7. **Local-only substitutes can hide production failures.** An application that uses in-memory queueing, locking, or state in development may exercise materially different execution paths from its production deployment.
 8. **Character services need operational boundaries.** Cost, tool access, model access, data access, timeouts, concurrency, and resource use need explicit limits that can be enforced without embedding every limit into character content.
+9. **Flat history cannot express qualified or conflicting knowledge safely.** A world fact, a character's mistaken belief, an actor-provided statement, and a private inference can refer to the same subject while differing in perspective, source, validity, confidence, and permitted audience.
+10. **An ingress event is not necessarily a conversational turn.** Group, room, broadcast, and many-to-many interaction may require multiple actor events, multiple eligible character speakers, deterministic turn sealing, causal ordering, and speaker-identified delivery.
+11. **Shared scenes can leak or corrupt private state.** Multiple actors and characters can participate in one interaction while each character, actor, relationship, and audience has a different authorized view and a different state-transition scope.
+12. **Identity correspondence does not itself authorize data reuse.** Proving that two channel-local identities belong to the same actor must remain separate from deciding which memories, relationships, topics, purposes, destinations, and audiences may cross the channel boundary.
 
 The disclosed architecture addresses these problems through explicit responsibility boundaries, stable contracts, replaceable implementations, orchestration, shared reliability mechanisms, and concrete failure-handling rules.
 
@@ -90,6 +97,30 @@ A message, API, event, or data interface intended to survive implementation chan
 ### 3.8 Reference embodiment
 
 A concrete, implementable arrangement that demonstrates how the architecture can be realized. A reference embodiment is not the only permitted arrangement.
+
+### 3.9 Actor
+
+A person, account holder, external agent, or other originator that participates through one or more channel-local identities. An Actor identifier can be local to a channel, pairwise across selected channels, or canonical within an authorized RCCP scope.
+
+### 3.10 Qualified Knowledge Statement
+
+A representation of a subject-predicate-object assertion together with qualifiers such as perspective holder, truth mode, source, confidence, validity interval, publication revision, visibility, and consent. The physical representation can be a graph statement, row, document, event, or equivalent record.
+
+### 3.11 Participant and speaker
+
+A Participant is an Actor, character, system role, or permitted external agent included in an interaction scope. A speaker is the Participant selected to emit a particular output. Participation does not automatically confer speaking eligibility, access to every context item, or permission to receive every output.
+
+### 3.12 Multi-party turn
+
+An immutable or versioned unit formed from one or more admitted source interactions and processed under a participant snapshot, audience scope, formation policy, causal identity, and state revision. A Multi-party Turn can select zero, one, or multiple character speakers.
+
+### 3.13 Identity Link
+
+A verified correspondence between two or more channel-local identities or between a channel-local identity and a canonical Actor identifier. An Identity Link establishes identity correspondence only; it does not by itself authorize memory or relationship transfer.
+
+### 3.14 Continuity Sharing Grant
+
+A revisioned authorization that permits selected continuity data to be reused across specified identity, topic, relation, character, destination, audience, purpose, and time scopes. The grant can be narrowed, superseded, revoked, expired, or deleted independently of an Identity Link.
 
 ## 4. Logical architecture
 
@@ -1396,7 +1427,9 @@ The same architecture can be extended to:
 - live-streaming characters by combining scheduled/event-driven orchestration with streaming channel adapters;
 - digital signage by combining sensor/event channels with character output adapters;
 - games by exposing game state and actions through State/Tool services;
+- ontology- or knowledge-graph-backed world knowledge, character belief, memory, and relationship retrieval;
 - external business systems through controlled tools and domain-specific core services;
+- multi-party conversations that coordinate several actors, several characters, or both;
 - multiple characters through per-character definitions and workflows, or workflows coordinating several character identities;
 - shared world state through an independently scoped State Service;
 - human moderation or operator intervention as workflow steps.
@@ -3725,6 +3758,1812 @@ sequenceDiagram
   P-->>M: generated output
   M-->>O: channel-neutral model output
 ```
+
+## 62. Ontology, knowledge graph, and perspective-aware continuity
+
+RCCP can represent character knowledge and continuity as connected concepts rather than only as flat prompt text, chronological messages, or independently retrieved vector chunks.
+
+Sections 62 through 79 disclose multiple complete technical embodiments. Each embodiment is independently implementable, and compatible embodiments can be combined. No selection among them is required for the disclosure to apply; a deployment selects the arrangement that satisfies its content, privacy, latency, scale, and operational requirements.
+
+The represented information can include:
+
+- world entities such as people, characters, organizations, places, objects, events, rules, concepts, and fictional terminology;
+- world facts and constraints intended to be authoritative within a particular publication revision;
+- character beliefs, including incomplete, mistaken, secret, inferred, or conflicting beliefs;
+- actor-provided statements, preferences, experiences, and memories;
+- actor-character and character-character relationship state;
+- conversation, scene, story, quest, and temporal context;
+- provenance, confidence, review status, validity interval, visibility, consent, and retention metadata;
+- links from structured concepts to source passages, creator notes, interaction events, assets, or external records.
+
+These categories are not required to share one truth status. For example, the following may coexist without being collapsed into one assertion:
+
+- a published world fact;
+- what Character A believes about that fact;
+- what Character B is permitted to know;
+- what an actor privately told Character A;
+- what may be stated in a public room;
+- what was true during an earlier story revision.
+
+An implementation can model each item as a node, document, row, statement, triple, edge, event, or immutable record. A relation may carry qualifiers such as:
+
+```json
+{
+  "statement_id": "stmt:01J...",
+  "subject": "actor:123",
+  "predicate": "prefers_topic",
+  "object": "topic:astronomy",
+  "perspective": {"kind": "actor_statement", "holder_id": "actor:123"},
+  "source": {"interaction_id": "interaction:abc", "message_id": "message:def"},
+  "validity": {"from": "2026-09-01T00:00:00Z", "until": null},
+  "confidence": 0.9,
+  "visibility_scope": "character-and-actor",
+  "consent_grant_id": "consent:789",
+  "revision": 3
+}
+```
+
+The example is illustrative. An implementation may use different fields or may separate statements, provenance, authorization, and temporal data into different records.
+
+### 62.1 Alternative representations
+
+The same logical capability can be implemented with one or more of:
+
+- RDF graphs and RDF-compatible vocabularies;
+- OWL ontologies where formal classes, properties, constraints, or inference are useful;
+- labeled-property graph databases;
+- relational tables containing entities, typed relations, and qualifier tables;
+- document databases containing linked records;
+- event logs from which current knowledge projections are derived;
+- vector, full-text, or hybrid indexes connected to authoritative source records;
+- Open Knowledge Format bundles;
+- ordinary Markdown, JSON, YAML, or other creator-owned files compiled into a runtime representation;
+- provider-managed knowledge or memory behind an RCCP adapter.
+
+RCCP does not require the storage representation, authoring representation, query representation, and model-context representation to be identical.
+
+One embodiment stores creator-authored lore as versioned documents, compiles selected concepts and relations into a graph projection, indexes descriptive text for semantic retrieval, and emits a compact context manifest for a model call. Another embodiment stores authoritative statements in relational tables and creates graph and vector projections asynchronously.
+
+### 62.2 Knowledge responsibility boundary
+
+A Knowledge capability can be a dedicated Core Service, part of Search, part of Memory, part of Character, or a set of replaceable services. Regardless of topology, its contract can distinguish:
+
+- resolving a concept by stable identifier;
+- traversing explicitly typed relations;
+- searching by text, embedding, metadata, or graph pattern;
+- retrieving only statements visible to the current actor, character, channel, audience, and workflow;
+- returning source and revision identifiers;
+- proposing new statements without immediately making them authoritative;
+- validating or rejecting a proposed update;
+- invalidating, superseding, expiring, or deleting statements and derived projections;
+- preserving the difference between source records and derived inferences.
+
+The Model Service does not become the authority for knowledge merely because a model proposed or summarized a statement. A model-produced candidate can enter validation, creator review, deterministic checks, confidence policy, or another workflow before it is published or used as durable memory.
+
+### 62.3 Retrieval and context assembly
+
+Orchestration can combine graph traversal with vector, full-text, rule-based, or direct-key retrieval.
+
+For example:
+
+1. resolve the active character, actor, conversation, scene, and publication revisions;
+2. identify candidate concepts from the current interaction;
+3. traverse relations allowed by knowledge, memory, relationship, and consent policies;
+4. retrieve source passages or structured attributes for selected nodes;
+5. rank or filter results by relevance, authority, recency, visibility, token cost, and latency;
+6. construct a context manifest that identifies every included item and its scope;
+7. generate or select an output;
+8. optionally propose memory or relationship updates with source references.
+
+Traversal depth, result count, cycle handling, inference rules, and context budget are explicit policies. The system does not place an entire graph or knowledge bundle into every model request.
+
+### 62.4 Conflicts, time, and character-specific belief
+
+A graph-backed arrangement can keep contradictory statements when they have different sources, perspectives, validity intervals, or publication revisions. Conflict handling may:
+
+- prefer a designated authoritative world source;
+- select the belief held by the currently acting character;
+- expose uncertainty or disagreement to the workflow;
+- ask the actor to clarify;
+- retain both statements while preventing either from becoming a system-wide fact;
+- resolve the conflict through a creator or operator review process.
+
+This permits stories containing secrecy, unreliable narrators, misunderstandings, changing facts, alternate timelines, or characters with different knowledge without converting every difference into corrupt data.
+
+## 63. Open Knowledge Format embodiments
+
+Open Knowledge Format (OKF) can be used as a portable authoring or exchange representation for RCCP knowledge. In this embodiment, concepts are represented as Markdown documents with YAML frontmatter and are connected by links or references. The bundle remains readable and reviewable by people while tools can discover concepts and relations.
+
+RCCP can use OKF for:
+
+- world lore, terminology, locations, objects, organizations, and events;
+- character-visible and creator-only knowledge partitions;
+- character definitions or references to character definitions;
+- relationship types, conversation topics, and memory categories;
+- mappings between concepts and source material;
+- creator guidance, provenance, review status, freshness, and lifecycle metadata;
+- import, export, archival, migration, and interchange between compatible tools.
+
+### 63.1 Creator publication to runtime knowledge
+
+One implementation uses the following lifecycle:
+
+1. a creator edits a small OKF bundle or a UI that produces an equivalent bundle;
+2. validation checks required metadata, identifiers, links, cycles, broken references, allowed custom fields, and access classifications;
+3. review or approval records the accepted bundle revision;
+4. publication creates an immutable content hash and binds it to a character or service publication;
+5. a compiler or ingestion process creates graph, relational, full-text, and/or vector projections;
+6. runtime retrieval returns source concept IDs and the immutable bundle revision;
+7. rollback activates an earlier bundle revision and rebuilds or switches the affected projections.
+
+The original bundle remains the creator-owned source representation in this embodiment. Runtime indexes are replaceable derived state.
+
+### 63.2 Static lore and dynamic memory
+
+Static creator-authored lore and dynamic actor memory do not have to be stored in the same bundle.
+
+Alternative embodiments include:
+
+- immutable published lore bundles plus a protected actor-memory store;
+- a base world bundle plus per-character belief overlays;
+- a base world bundle plus per-actor private overlays;
+- append-only memory documents compiled into a private graph;
+- dynamic records in a database with controlled export to an OKF bundle;
+- no OKF representation for dynamic memory, while OKF remains the interchange format for curated knowledge.
+
+If actor-specific memory is represented as OKF, the bundle is stored behind the same access, encryption, retention, deletion, audit, and consent controls as any other private memory. The use of human-readable Markdown does not make the content public or suitable for a public source repository.
+
+### 63.3 Standard fields and RCCP extensions
+
+An RCCP OKF profile can separate:
+
+- fields defined by the selected OKF specification version;
+- RCCP-wide extension fields;
+- service- or character-specific fields;
+- private deployment metadata;
+- runtime-only derived fields.
+
+Consumers preserve unknown fields where required by the selected compatibility policy and do not silently interpret service-specific metadata as an OKF-wide semantic guarantee.
+
+The publication records the OKF specification version and RCCP profile revision used for validation. A later OKF version can be adopted through an explicit migration or compatibility layer rather than changing the meaning of an already published bundle.
+
+### 63.4 Specification references
+
+The current Open Knowledge Format specification is maintained at <https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md>, with the repository and examples at <https://github.com/GoogleCloudPlatform/open-knowledge-format>. The version used by an RCCP publication is pinned rather than inferred from the latest repository state.
+
+RDF and OWL are separate possible representations with their own formal semantics. Current RDF specifications are published by W3C at <https://www.w3.org/TR/rdf12-concepts/>, and the OWL 2 document set is introduced at <https://www.w3.org/TR/owl2-overview/>. Naming these alternatives does not require an RCCP deployment to use Semantic Web technology.
+
+## 64. Direct, multi-party, room, and broadcast conversation profiles
+
+Conversation topology is a separate concern from the fact that an external platform delivered one event at a time. A multi-party profile can represent many-to-many (n-to-n) conversation among actors and characters without requiring every individual ingress event to contain several speakers.
+
+RCCP can support profiles including:
+
+- direct actor-to-character conversation;
+- several actors interacting with one character;
+- one actor interacting with several characters;
+- several actors and several characters in one scene;
+- character-to-character conversation with no human message for a turn;
+- public room or livestream conversation;
+- private group conversation;
+- threaded, topic-based, spatial, scene-based, or game-session conversation;
+- a conversation that moves between channels while retaining selected continuity.
+
+A normalized event may still contain one originating actor and one message. Orchestration can aggregate several normalized events into a later conversational turn without requiring the Channel Adapter to invent a synthetic human speaker.
+
+### 64.1 Participant, audience, and speaker model
+
+A multi-party conversation can resolve a participant set such as:
+
+```json
+{
+  "conversation_id": "conversation:room-42",
+  "topology": "multi_party",
+  "participants": [
+    {"participant_id": "actor:123", "kind": "actor", "role": "member"},
+    {"participant_id": "actor:456", "kind": "actor", "role": "moderator"},
+    {"participant_id": "char:alice", "kind": "character", "role": "speaker"},
+    {"participant_id": "char:bob", "kind": "character", "role": "speaker"}
+  ],
+  "audience": {"kind": "conversation_members"},
+  "thread_id": "thread:topic-7",
+  "scene_id": "scene:station"
+}
+```
+
+Participant membership, authorization, reply targeting, visibility, and output speaker identity are distinct fields or responsibilities. Presence in one room does not authorize access to every participant's private memory.
+
+### 64.2 Turn formation
+
+Alternative turn-formation strategies include:
+
+- process every admitted event independently;
+- wait for a fixed or adaptive collection window;
+- collect until an explicit end-of-turn signal;
+- collect until a quiet period;
+- select one message from a high-volume room;
+- group replies, mentions, or thread messages;
+- let a workflow or model propose a batch subject to deterministic limits;
+- use a game, meeting, or scene controller as the turn authority.
+
+The resulting turn records the source event and message IDs it contains. Redelivery of one source event does not cause the entire turn to be applied twice.
+
+### 64.3 Ordering and concurrency
+
+One deployment can use different ordering scopes for different state:
+
+- per-originating actor for private actor memory;
+- per actor-character pair for relationship progression;
+- per character for character-private state;
+- per thread or scene for shared conversational order;
+- per world or quest for shared state transitions;
+- per external destination for delivery ordering.
+
+The coordinator acquires or validates only the scopes it mutates. Unrelated conversations can continue concurrently. Optimistic concurrency, ordered broker groups, actor runtimes, workflow instances, leases, or explicit locks are alternative implementations.
+
+### 64.4 Output and reply targeting
+
+A multi-party result can contain zero or more channel-neutral output intents. Each intent identifies:
+
+- speaker character or system role;
+- intended audience;
+- reply target, mention target, thread, or scene when applicable;
+- visibility such as public, group, selected participants, or private;
+- content parts;
+- ordering and correlation metadata;
+- delivery policy and expiration.
+
+The Channel Adapter renders these semantics with the capabilities of the destination platform. A channel that cannot express a private subreply, multiple speakers, or a thread can reject the plan, select an authorized fallback, split delivery, or report non-delivery according to policy.
+
+## 65. Character-to-character conversation
+
+Character-to-character conversation is an orchestration topology, not a requirement that one model impersonate every participant in one unrestricted prompt.
+
+A coordinator can:
+
+1. resolve immutable revisions for all participating characters;
+2. load shared scene and world state;
+3. load only the private knowledge, memory, goals, and relationships authorized for the character whose turn is being evaluated;
+4. select the next speaker or speakers;
+5. invoke separate Character and Model operations or one constrained multi-speaker operation;
+6. validate proposed speech and state transitions;
+7. commit shared and private changes under separate scopes;
+8. emit outputs to a user-visible channel, an internal simulation stream, or both.
+
+Alternative speaker-selection strategies include fixed order, initiative, workflow rules, event triggers, priority queues, moderator selection, model-assisted selection, and simultaneous proposals followed by arbitration.
+
+### 65.1 Private knowledge and asymmetric relationships
+
+Character A's memory of Character B may differ from Character B's memory of Character A. A relationship can therefore be directional and perspective-scoped.
+
+The coordinator can distinguish:
+
+- shared facts known to both characters;
+- facts visible only to one character;
+- each character's private memories;
+- directional affinity, trust, obligation, suspicion, or familiarity;
+- public statements heard by all participants;
+- private messages or internal observations;
+- creator-only information that affects behavior but must never be emitted.
+
+No participating character receives another character's private state merely because both are controlled by the same coordinator.
+
+### 65.2 Bounded autonomous dialogue
+
+Character-only dialogue can be initiated by a schedule, story event, tool result, state transition, moderator command, or another character output.
+
+The workflow applies explicit limits such as:
+
+- maximum turns, wall-clock deadline, and model/tool budget;
+- allowed participants and destinations;
+- termination conditions;
+- repetition or loop detection;
+- state mutation permissions;
+- tool and external-effect permissions;
+- human approval gates for selected effects;
+- whether unobserved dialogue becomes durable canon, a proposal, or disposable simulation.
+
+Stopping generation and committing state are separate decisions. A cancelled dialogue does not automatically roll back effects that were already committed, and no external side effect is repeated merely to recreate a missing conversational turn.
+
+## 66. Consent-scoped cross-channel memory and relationships
+
+Verified identity linkage can establish that several channel-local identities belong to one canonical actor, but identity linkage alone does not authorize every memory or relationship item to flow to every channel.
+
+A separate consent or continuity-sharing policy can authorize selected information by:
+
+- canonical actor;
+- source and destination channel or channel instance;
+- service, character, conversation, group, or audience;
+- topic or concept;
+- memory class or individual memory;
+- relationship dimension or relationship summary;
+- purpose, such as personalization, continuity, search, or analytics;
+- visibility, such as private direct chat or public room;
+- validity period, revocation state, and policy revision.
+
+An illustrative grant is:
+
+```json
+{
+  "consent_grant_id": "consent:789",
+  "actor_id": "actor:123",
+  "source_scopes": [
+    {"channel_type": "line", "channel_instance_id": "line:official-1"}
+  ],
+  "destination_scopes": [
+    {"channel_type": "discord", "channel_instance_id": "discord:guild-9"}
+  ],
+  "allowed_topics": ["topic:astronomy", "topic:favorite-books"],
+  "allowed_memory_kinds": ["preference", "relationship_summary"],
+  "allowed_characters": ["char:alice"],
+  "audience_limit": "direct_or_private",
+  "purpose": "conversation_continuity",
+  "valid_from": "2026-09-06T00:00:00Z",
+  "expires_at": null,
+  "status": "active",
+  "policy_revision": "continuity-policy:4"
+}
+```
+
+The system evaluates the grant when retrieving or projecting continuity, not only when linking accounts.
+
+### 66.1 Topic and relation selection
+
+Topic-scoped sharing can be implemented through stable concept IDs, ontology classes, creator-defined labels, policy rules, an allow-list of memory IDs, or a combination.
+
+For example, an actor can permit a character to remember conversations about astronomy across LINE and Discord while keeping health, employment, location, another character relationship, and all public-room disclosures channel-local.
+
+Relationship sharing can likewise select:
+
+- the complete directional relationship state;
+- only a coarse relationship stage;
+- selected dimensions;
+- a derived summary;
+- events that contributed to the relationship;
+- no relationship state while still sharing selected factual memories.
+
+A derived cross-channel summary records its source scopes and consent grant so it can be invalidated or rebuilt when the grant changes.
+
+### 66.2 Linking, unlinking, revocation, and deletion
+
+The following are separate operations:
+
+- link a channel identity to a canonical actor;
+- authorize selected continuity sharing;
+- revoke or narrow future sharing;
+- unlink a channel identity;
+- delete source data;
+- delete or rebuild derived cross-channel projections;
+- retain an audit record where policy permits or requires it.
+
+Revocation normally prevents future retrieval and new derivation under the revoked grant. Whether previously delivered content, historical audit records, or source memories are deleted is decided by the applicable retention and deletion policy rather than inferred from unlinking alone.
+
+### 66.3 Public and group destinations
+
+Before inserting actor-specific memory into context for a public or group destination, the workflow checks both the consent grant and the current audience. A grant for cross-channel direct-chat continuity does not authorize public disclosure.
+
+One embodiment creates an audience-specific projection that contains only information permitted for the current destination and character. Another retrieves candidate memories from their original scopes and filters every item at context-assembly time. A hybrid can materialize commonly used projections while rechecking the current policy before use.
+
+### 66.4 Identity alternatives
+
+Canonical identity is optional. Alternative embodiments include:
+
+- pairwise links between two channel identities;
+- per-character canonical identities;
+- service-local identity without cross-service linkage;
+- pseudonymous continuity tokens controlled by the actor;
+- short-lived or one-session linkage;
+- user-carried encrypted continuity packages;
+- no identity linkage, with explicit copy or import of selected memories.
+
+These alternatives can reduce the breadth of one global identity while still enabling intentionally selected continuity.
+
+## 67. Contract profiles and evolution from direct chat to multi-party interaction
+
+A simple direct-chat contract does not have to include the full participant, speaker, audience, and turn-formation model.
+
+One embodiment defines a long-lived Direct Chat profile with:
+
+- one normalized originating actor;
+- one target character;
+- one input message per request;
+- one conversation scope;
+- typed content parts;
+- stable interaction and message identifiers;
+- tenant and service scopes;
+- channel type and channel-instance origin;
+- a response containing one or more channel-neutral character messages or an explicit error.
+
+Multi-party and multi-character interaction can later use:
+
+- a different API;
+- a different explicit profile;
+- a discriminated union of layouts;
+- an event-ingress API plus a separate turn/coordinator API;
+- a stream of normalized events consumed by a conversation coordinator.
+
+The Direct Chat profile and Multi-party profile can coexist. Adding multi-party interaction does not require changing the meaning of an existing direct-chat actor, character, conversation, or message field.
+
+### 67.1 Illustrative direct-chat envelope
+
+```json
+{
+  "interaction_id": "interaction:01J...",
+  "scope": {
+    "tenant_id": "tenant:example",
+    "service_id": "service:character-chat"
+  },
+  "origin": {
+    "channel_type": "line",
+    "channel_instance_id": "line:official-1"
+  },
+  "conversation": {"id": "conversation:abc"},
+  "actor": {"id": "actor:channel-local-123"},
+  "character": {"id": "char:alice"},
+  "message": {
+    "id": "message:external-event-456",
+    "content": [{"type": "text", "text": "Hello"}]
+  },
+  "limits": {
+    "deadline_at": "2026-09-06T00:00:05Z",
+    "max_output_messages": 3
+  }
+}
+```
+
+`interaction_id` identifies admitted processing, while `message.id` identifies the input message. They can coexist even when both are derived from one external event.
+
+Character, actor, conversation, tenant, service, and channel-instance identifiers remain separate because they have different lifecycles and scopes. A LINE identity and a Discord identity do not become the same actor ID merely because a later consented identity link exists.
+
+### 67.2 Multi-party profile alternatives
+
+A Multi-party profile may reference:
+
+- one originating event plus the current participant and scene snapshot;
+- a set of source message IDs forming a turn;
+- a durable conversation-coordinator instance;
+- proposed and selected output speakers;
+- multiple channel-neutral output intents;
+- per-output audience and reply target;
+- the revisions of participant, routing, memory, and consent policies.
+
+The profile is versioned independently when its compatibility requirements differ from Direct Chat. Channel Adapters can continue producing one normalized event per external message while the coordinator owns aggregation and speaker selection.
+
+## 68. Raw channel information, normalized identity, and privacy-preserving diagnostics
+
+A Channel Adapter can preserve channel-source information needed for signature verification, deduplication, reply correlation, diagnostics, or later policy review without placing the complete raw payload in the channel-neutral orchestration request.
+
+Alternative storage locations include:
+
+- an adapter-owned work item;
+- a restricted correlation record;
+- an encrypted source-event record;
+- an allow-listed audit projection;
+- no persistent raw record after admission.
+
+Records are correlated with stable interaction and channel-event identifiers. Access, retention, redaction, encryption, and creator/operator visibility are explicit policies.
+
+Logs can replace selected identifiers or text fragments with keyed HMAC values for correlation without storing the original value in ordinary diagnostic output. Key purpose, encoding, rotation, collision handling, and failure behavior are defined explicitly. HMAC-based logging is a diagnostic embodiment and does not replace authorization, encryption, or source-data retention controls.
+
+Creator-selected channel assets, such as a LINE sticker identifier or Discord custom emoji identifier, can remain exact creator-owned values in a versioned channel-specific content descriptor. They need not be forced into a universal semantic asset ID, and the complete vendor request object need not enter the orchestration contract.
+
+## 69. Additional combination disclosures
+
+### Combination AK — Ontology-backed world knowledge with character-specific belief overlays
+
+A published world ontology defines entities, relations, and authoritative story facts. Each character has a separately scoped belief overlay containing known, unknown, inferred, mistaken, or secret statements. Orchestration retrieves the acting character's permitted view and records source and publication revisions in the context manifest.
+
+### Combination AL — OKF creator bundle compiled to graph and vector projections
+
+A creator edits a versioned OKF bundle. Validation and approval produce an immutable publication revision. An ingestion process compiles linked concepts into a graph projection and descriptive text into a vector index. Runtime results point back to source concept IDs, while rollback switches the bundle revision and rebuilds or replaces derived projections.
+
+### Combination AM — Actor memory graph with consent-scoped channel projection
+
+Actor statements and character observations enter an authoritative private memory graph with source event IDs. A consent grant selects topics, memory classes, characters, destination channels, and audience limits. Context assembly produces a destination-specific projection and records the grant and source IDs used.
+
+### Combination AN — Multi-user, multi-character scene coordinator
+
+Several actors and characters participate in one scene. A coordinator collects or selects admitted events, resolves participant revisions, loads shared scene state and separately authorized private state, selects one or more character speakers, and commits shared and private transitions under distinct concurrency scopes.
+
+### Combination AO — Bounded autonomous character-to-character dialogue
+
+A story event starts a character-only dialogue. Separate character operations receive only their authorized beliefs and goals. A coordinator enforces turn, time, cost, tool, destination, and termination limits, records each committed transition, and can stop later turns without repeating earlier external effects.
+
+### Combination AP — Direct Chat and Multi-party contracts in parallel
+
+Simple one-actor/one-character services use a stable Direct Chat profile. Group, room, broadcast, and multi-character services use a separate profile or coordinator API. Both share stable content, identity, publication, memory, state, and output concepts without forcing participant arrays or speaker arbitration into every direct-chat request.
+
+### Combination AQ — Public-room selection with private cross-channel continuity
+
+A public-room workflow selects an eligible actor event, resolves a verified identity link, and retrieves only memories whose consent grant permits the current character and public or group audience. Direct-chat-only memories remain excluded even when the actor has authorized their use on another private channel.
+
+### Combination AR — Relational authority with replaceable ontology and graph projections
+
+Authoritative memory and relationship records remain in relational storage. Background processing builds an ontology-aligned graph and vector index. Retrieval can traverse the graph and return source record IDs. Migration or index failure does not change the authoritative records or Channel Adapter contract.
+
+## 70. Additional worked reference embodiments
+
+### 70.1 Reference Embodiment R4 — OKF world bundle, graph retrieval, and actor-memory overlay
+
+This embodiment uses an immutable OKF bundle as the creator-authored source for world knowledge.
+
+Publication performs:
+
+1. YAML/frontmatter and link validation;
+2. RCCP profile and access-classification validation;
+3. source, review, and publication metadata capture;
+4. content hashing;
+5. ingestion to a graph store;
+6. full-text and embedding index creation;
+7. activation of one immutable knowledge revision.
+
+Dynamic actor memory is stored separately with actor, character, source-event, topic, visibility, retention, and consent references.
+
+For a direct-chat interaction:
+
+1. Orchestration resolves the character and knowledge publication revisions.
+2. Current-message concepts are identified.
+3. The Knowledge capability traverses world concepts and the acting character's belief overlay.
+4. The Memory capability retrieves actor memories permitted for this character and destination.
+5. The context assembler ranks structured statements and source passages under a budget.
+6. The Model Service receives a provider-neutral request plus a context manifest.
+7. Generated memory candidates are validated before entering authoritative memory.
+
+If the graph or vector projection is unavailable, policy can fall back to direct document lookup, return a reduced-context response, or fail the interaction. It does not silently use private or stale data from an unrelated scope.
+
+### 70.2 Reference Embodiment R5 — Discord group scene with two actors and two characters
+
+A Discord Channel Adapter admits one message event at a time and maps guild/channel/thread/message/author identifiers into channel metadata and RCCP scopes.
+
+A scene coordinator:
+
+1. deduplicates every source event;
+2. collects eligible messages until a quiet period or explicit turn trigger;
+3. records the exact message IDs forming the turn;
+4. loads shared scene state;
+5. loads actor-specific continuity only for uses authorized in the group audience;
+6. loads separate private belief and relationship state for each candidate character;
+7. selects one or both character speakers;
+8. generates channel-neutral outputs with speaker and reply-target identity;
+9. validates and commits state transitions with optimistic concurrency;
+10. sends Discord replies through an effect journal.
+
+The same coordinator can accept LINE group, Matrix room, Web room, game-session, or livestream events through different adapters. A deployment can instead process each event immediately and omit collection windows.
+
+## 71. Additional explicit technical propositions
+
+### TP-19 — Perspective-aware knowledge graph for character behavior
+
+A system can represent world facts, character beliefs, actor statements, relationship facts, and creator-only constraints as separately scoped statements connected by stable entity and relation identifiers. Retrieval selects statements by acting character, actor, scene, publication revision, validity interval, visibility, and authorization without collapsing conflicting perspectives into one global truth.
+
+### TP-20 — Portable knowledge publication with replaceable runtime projections
+
+A human-editable linked-document bundle, including an OKF bundle, can be validated and fixed as an immutable publication revision. Graph, relational, full-text, and vector runtime representations are derived from that revision and can be rebuilt or replaced while runtime results preserve links to source concept IDs and revisions.
+
+### TP-21 — Actor-memory graph governed by per-topic cross-channel consent
+
+Memory statements can be associated with stable topic or ontology identifiers, source scope, visibility, provenance, and consent grant. After verified identity linkage, context assembly shares only statements permitted for the destination channel, character, audience, purpose, and time, while other linked-channel data remains isolated.
+
+### TP-22 — Multi-party turn formation from individually admitted events
+
+A Channel Adapter can normalize and durably admit each actor event independently. A conversation coordinator later selects or groups source event IDs into a multi-party turn, applies deduplication and ordering at the appropriate state scopes, and emits outputs with explicit speaker, audience, and reply targets.
+
+### TP-23 — Multi-character conversation with scoped private beliefs
+
+A coordinator can execute two or more character revisions against shared scene state while retrieving separate private beliefs, memories, goals, and directional relationships for each acting character. Shared coordination does not grant one character access to another character's private state.
+
+### TP-24 — Bounded autonomous character dialogue
+
+A schedule, story event, state transition, or character output can initiate further character turns. A coordinator enforces explicit participant, turn, deadline, budget, termination, tool, effect, and destination policies and records committed effects independently from whether later dialogue turns are cancelled.
+
+### TP-25 — Coexisting direct and multi-party contract profiles
+
+A stable direct-chat contract can retain a one-actor, one-character, one-input-message model while a separately versioned multi-party profile or coordinator API adds participant sets, event aggregation, speaker selection, audiences, and multiple output intents. Both profiles reuse stable identity and content concepts without changing the established meaning of direct-chat fields.
+
+### TP-26 — Consent revocation with derived-projection invalidation
+
+Revoking or narrowing a continuity-sharing grant prevents future authorized retrieval under that grant and triggers invalidation or rebuilding of destination-specific derived summaries, caches, graph projections, or indexes. Identity unlinking, source deletion, derived cleanup, and audit retention remain explicit separate operations.
+
+### TP-27 — Channel-source isolation with correlated diagnostics
+
+A Channel Adapter can keep raw or channel-specific event data in a restricted source or correlation record while sending only normalized fields to orchestration. Stable event and interaction identifiers, optionally accompanied by purpose-specific HMAC values in logs, support diagnostics without making raw channel payloads a platform-wide dependency.
+
+## 72. Additional figure set
+
+### Figure 11 — Perspective-aware knowledge and continuity
+
+```mermaid
+flowchart TB
+  W[Published World Knowledge]
+  B[Character Belief Overlay]
+  M[Actor Memory]
+  R[Relationship State]
+  P[Policy and Consent]
+  K[Knowledge Context]
+  W --> K
+  B --> K
+  M --> P
+  R --> P
+  P --> K
+  K --> O[Character Orchestration]
+```
+
+### Figure 12 — OKF publication and runtime projections
+
+```mermaid
+flowchart TB
+  D[Creator OKF Draft]
+  V[Validate and Review]
+  I[Immutable Bundle Revision]
+  G[Graph Projection]
+  X[Text and Vector Index]
+  Q[Knowledge Service]
+  D --> V --> I
+  I --> G --> Q
+  I --> X --> Q
+```
+
+### Figure 13 — Multi-party and multi-character coordination
+
+```mermaid
+flowchart TB
+  E[Normalized Actor Events]
+  T[Turn Formation]
+  C[Scene Coordinator]
+  S[Shared Scene State]
+  P[Scoped Private State]
+  O[Speaker-Identified Outputs]
+  E --> T --> C
+  S --> C
+  P --> C
+  C --> O
+```
+
+### Figure 14 — Consent-scoped cross-channel continuity
+
+```mermaid
+flowchart TB
+  L[LINE Identity]
+  D[Discord Identity]
+  C[Verified Canonical Actor]
+  G[Topic and Audience Grant]
+  M[Scoped Memory and Relationship]
+  X[Destination Context]
+  L --> C
+  D --> C
+  C --> G
+  M --> G
+  G --> X
+```
+
+## 73. Detailed records for graph-backed knowledge and multi-party continuity
+
+This section defines one complete family of logical records. The records can be JSON documents, relational rows, graph nodes and edges, event payloads, protocol messages, or in-process types. A physical implementation can combine or split them while preserving their identifiers, scopes, and authorization semantics.
+
+### 73.1 Entity record
+
+An Entity Record identifies something that can appear in knowledge, memory, relationship, conversation, or policy data.
+
+```json
+{
+  "entity_id": "entity:place:moon-observatory",
+  "entity_type": "place",
+  "canonical_name": "Moon Observatory",
+  "aliases": ["Lunar Observatory"],
+  "scope": {
+    "tenant_id": "tenant:example",
+    "service_id": "service:character-chat",
+    "world_id": "world:example"
+  },
+  "publication_revision_id": "publication:knowledge:17",
+  "status": "active",
+  "validity": {
+    "from": "2026-09-01T00:00:00Z",
+    "until": null
+  }
+}
+```
+
+`entity_id` is stable within the declared scope. A renamed place retains its identifier. Alternate timelines, worlds, services, or tenant namespaces use separate scope or revision identifiers rather than assuming that equal display names identify the same entity.
+
+### 73.2 Qualified knowledge statement
+
+A Qualified Knowledge Statement connects a subject to an object or literal through a predicate and carries the qualifications needed for character behavior.
+
+```json
+{
+  "statement_id": "statement:01J...",
+  "subject": {
+    "kind": "entity",
+    "id": "entity:character:alice"
+  },
+  "predicate": "believes_location_of",
+  "object": {
+    "kind": "entity",
+    "id": "entity:artifact:blue-key"
+  },
+  "qualifiers": {
+    "location_id": "entity:place:moon-observatory",
+    "truth_mode": "character_belief",
+    "perspective_holder_id": "char:alice",
+    "confidence": 0.72,
+    "visibility": "character_private",
+    "valid_from": "2026-09-06T00:00:00Z",
+    "valid_until": null
+  },
+  "scope": {
+    "tenant_id": "tenant:example",
+    "service_id": "service:character-chat",
+    "world_id": "world:example",
+    "character_id": "char:alice"
+  },
+  "source_refs": [
+    {
+      "kind": "interaction",
+      "interaction_id": "interaction:abc",
+      "message_id": "message:def"
+    }
+  ],
+  "derived_from": [],
+  "consent_grant_ids": [],
+  "publication_revision_id": "publication:knowledge:17",
+  "record_version": 4,
+  "status": "active"
+}
+```
+
+`truth_mode` is one of several extensible modes, including:
+
+- `world_authoritative`;
+- `creator_assertion`;
+- `character_belief`;
+- `actor_statement`;
+- `character_observation`;
+- `system_inference`;
+- `unverified_report`;
+- `hypothesis`;
+- `disputed`;
+- `superseded`.
+
+The system retains different statements when they differ by perspective, source, time, world, publication, or visibility. It does not overwrite a Character B belief merely because Character A reports a conflicting fact.
+
+### 73.3 Memory record alternatives
+
+In a statement-native embodiment, a memory is a Qualified Knowledge Statement whose source is an interaction, event, tool result, or creator action.
+
+In a separate-memory embodiment, the record is:
+
+```json
+{
+  "memory_id": "memory:01J...",
+  "owner_scope": {
+    "tenant_id": "tenant:example",
+    "service_id": "service:character-chat",
+    "actor_id": "actor:123",
+    "character_id": "char:alice"
+  },
+  "memory_kind": "actor_preference",
+  "topic_ids": ["topic:astronomy"],
+  "content": {
+    "text": "The actor enjoys discussing lunar astronomy.",
+    "statement_ids": ["statement:01J..."]
+  },
+  "source_refs": [
+    {
+      "interaction_id": "interaction:abc",
+      "message_id": "message:def"
+    }
+  ],
+  "visibility": "private_direct_chat",
+  "consent_grant_ids": ["consent:789"],
+  "importance": 0.74,
+  "confidence": 0.91,
+  "validity": {
+    "from": "2026-09-06T00:00:00Z",
+    "until": null
+  },
+  "retention_policy_id": "retention:actor-memory:2",
+  "record_version": 2,
+  "status": "active"
+}
+```
+
+A text-only memory store, statement-only graph, dual text-and-graph record, immutable event log plus projection, or provider-managed memory adapter each implements this logical information. The authoritative representation is identified by deployment profile so two projections are not independently treated as truth.
+
+### 73.4 Directional relationship record
+
+```json
+{
+  "relationship_id": "relationship:alice-to-actor-123",
+  "from_participant": {
+    "kind": "character",
+    "id": "char:alice"
+  },
+  "to_participant": {
+    "kind": "actor",
+    "id": "actor:123"
+  },
+  "scope": {
+    "tenant_id": "tenant:example",
+    "service_id": "service:character-chat"
+  },
+  "dimensions": {
+    "familiarity": 0.66,
+    "trust": 0.41,
+    "affinity": 0.58
+  },
+  "stage_id": "relationship-stage:acquainted",
+  "topic_scopes": ["topic:astronomy"],
+  "evidence_refs": [
+    {
+      "interaction_id": "interaction:abc",
+      "transition_id": "transition:relationship:42"
+    }
+  ],
+  "visibility": "character_and_actor_private",
+  "consent_grant_ids": ["consent:789"],
+  "record_version": 42,
+  "status": "active"
+}
+```
+
+The reverse direction uses a different record. A symmetric relationship embodiment writes or derives both directions explicitly. A multidimensional embodiment uses numeric or categorical dimensions. A stage-machine embodiment stores named states and allowed transitions. An event-derived embodiment calculates the current relation from immutable events. Each arrangement preserves direction, scope, and evidence.
+
+### 73.5 Identity-link record
+
+```json
+{
+  "identity_link_id": "identity-link:01J...",
+  "canonical_actor_id": "actor:123",
+  "local_identities": [
+    {
+      "channel_type": "line",
+      "channel_instance_id": "line:official-1",
+      "local_actor_id": "line-user:U..."
+    },
+    {
+      "channel_type": "discord",
+      "channel_instance_id": "discord:guild-9",
+      "local_actor_id": "discord-user:456"
+    }
+  ],
+  "verification": {
+    "method": "one_time_challenge",
+    "verified_at": "2026-09-06T00:00:00Z",
+    "verification_record_id": "verification:abc"
+  },
+  "status": "active",
+  "record_version": 1
+}
+```
+
+The verification record stores evidence appropriate to the service without exposing reusable credentials to Orchestration. Identity linkage establishes correspondence. Consent Grant records separately determine data use.
+
+### 73.6 Multi-party turn record
+
+```json
+{
+  "turn_id": "turn:01J...",
+  "conversation_id": "conversation:room-42",
+  "scene_id": "scene:station",
+  "topology": "many_to_many",
+  "formation_policy_id": "turn-policy:quiet-window-2s",
+  "source_interactions": [
+    {
+      "interaction_id": "interaction:one",
+      "message_id": "message:one",
+      "actor_id": "actor:123",
+      "sequence": 101
+    },
+    {
+      "interaction_id": "interaction:two",
+      "message_id": "message:two",
+      "actor_id": "actor:456",
+      "sequence": 102
+    }
+  ],
+  "participant_snapshot_id": "participants:room-42:88",
+  "candidate_speaker_ids": ["char:alice", "char:bob"],
+  "selected_speaker_ids": ["char:alice"],
+  "audience": {
+    "visibility": "group",
+    "participant_ids": ["actor:123", "actor:456"]
+  },
+  "state": "speakers_selected",
+  "record_version": 3
+}
+```
+
+The record preserves every source identity used to form a turn. A retry reuses `turn_id` and does not admit the same source interaction twice.
+
+### 73.7 Speaker-identified output intent
+
+```json
+{
+  "output_intent_id": "output:01J...",
+  "turn_id": "turn:01J...",
+  "speaker": {
+    "kind": "character",
+    "character_id": "char:alice",
+    "character_revision_id": "character:alice:12"
+  },
+  "audience": {
+    "visibility": "group",
+    "participant_ids": ["actor:123", "actor:456"]
+  },
+  "reply_target": {
+    "message_id": "message:two",
+    "actor_id": "actor:456"
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "I remember the observatory, but let us keep that between us."
+    }
+  ],
+  "delivery": {
+    "channel_type": "discord",
+    "channel_instance_id": "discord:guild-9",
+    "destination_id": "discord-channel:77",
+    "expires_at": "2026-09-06T00:01:00Z"
+  },
+  "state_revision_refs": {
+    "scene": 18,
+    "relationship": 42,
+    "consent_policy": "continuity-policy:4"
+  }
+}
+```
+
+Several output intents can share one turn and identify different speakers or audiences. Delivery order is explicit when the channel or scene requires it.
+
+### 73.8 Context manifest
+
+```json
+{
+  "context_manifest_id": "context:01J...",
+  "execution_id": "execution:01J...",
+  "knowledge_publication_revision_id": "publication:knowledge:17",
+  "items": [
+    {
+      "source_kind": "knowledge_statement",
+      "source_id": "statement:01J...",
+      "source_revision": 4,
+      "topic_ids": ["topic:astronomy"],
+      "visibility": "character_private",
+      "consent_grant_id": null
+    },
+    {
+      "source_kind": "actor_memory",
+      "source_id": "memory:01J...",
+      "source_revision": 2,
+      "topic_ids": ["topic:astronomy"],
+      "visibility": "private_direct_chat",
+      "consent_grant_id": "consent:789"
+    }
+  ],
+  "policy_revisions": {
+    "retrieval": "retrieval-policy:6",
+    "consent": "continuity-policy:4",
+    "model": "model-policy:9"
+  },
+  "budget": {
+    "maximum_units": 12000,
+    "used_units": 6840
+  }
+}
+```
+
+The manifest supports later explanation, evaluation, deletion propagation, consent revocation, replay, and comparison of executions without storing provider-native prompt objects as the platform-wide authority.
+
+## 74. Complete knowledge publication, retrieval, and update procedures
+
+### 74.1 OKF source-bundle embodiment
+
+The source bundle contains one Markdown file for each concept or intentionally small concept group. A bundle includes an index and linked concept files such as:
+
+```text
+world/
+  index.md
+  places/moon-observatory.md
+  artifacts/blue-key.md
+characters/
+  alice.md
+  alice/beliefs/blue-key-location.md
+topics/
+  astronomy.md
+```
+
+An illustrative concept file is:
+
+```markdown
+---
+type: place
+title: Moon Observatory
+description: Observatory used by the lunar research team.
+status: active
+tags:
+  - astronomy
+  - restricted-area
+---
+
+# Moon Observatory
+
+The observatory contains the [Blue Key](../artifacts/blue-key.md) after
+the chapter-three transition.
+
+Character-specific beliefs are defined separately and link to this concept.
+```
+
+The bundle validator performs the following ordered procedure:
+
+1. read every permitted file beneath the bundle root;
+2. reject path traversal, unsupported file types, duplicate concept identifiers, and duplicate normalized paths;
+3. parse frontmatter and Markdown separately;
+4. validate required OKF fields against the pinned OKF version;
+5. validate RCCP extension fields against the pinned RCCP profile;
+6. resolve internal links relative to the bundle root;
+7. reject or report broken links according to publication policy;
+8. construct the directed concept graph;
+9. detect forbidden dependency cycles and report permitted semantic cycles;
+10. validate access classifications and prevent public concepts from linking to private content through an unrestricted path;
+11. calculate a content digest over normalized file paths and bytes;
+12. record creator, reviewer, validation-result, specification-version, and profile-version metadata;
+13. create an immutable Knowledge Publication Revision.
+
+The publication transaction writes the immutable manifest and an activation record. It never changes an already published revision. Activation can point a service, character, world, or environment to the new revision.
+
+### 74.2 Runtime projection alternatives
+
+The following are separately complete embodiments:
+
+1. **Direct bundle retrieval.** Runtime reads the immutable Markdown files, follows links, and selects passages without a database projection.
+2. **Relational projection.** Entities, statements, links, qualifiers, and source passages are inserted into relational tables with revision and scope columns.
+3. **Property-graph projection.** Entity and statement nodes plus typed edges are written to a labeled-property graph.
+4. **RDF projection.** RCCP entity and predicate identifiers are mapped to IRIs and emitted as RDF datasets with named graphs or equivalent scope separation.
+5. **OWL-enabled projection.** Selected classes, properties, and rules are represented in OWL, and inferred statements retain provenance identifying the reasoning configuration.
+6. **Document projection.** Each concept becomes a document containing resolved outgoing and incoming link identifiers.
+7. **Text/vector projection.** Markdown bodies and selected fields become full-text and embedding index entries whose metadata points to the immutable source concept.
+8. **Hybrid projection.** Structured traversal uses graph or relational storage, descriptive retrieval uses text/vector indexes, and both results join through stable concept identifiers.
+
+Every derived entry carries the source publication revision. A query never combines incompatible publication revisions unless an explicit cross-revision migration policy permits it.
+
+### 74.3 Projection build state
+
+Projection construction uses these logical states:
+
+```text
+DISCOVERED
+  -> VALIDATED
+  -> BUILDING
+  -> VERIFYING
+  -> READY
+  -> ACTIVE
+
+BUILDING | VERIFYING
+  -> FAILED
+
+ACTIVE
+  -> RETIRING
+  -> RETIRED
+```
+
+Build work is idempotent by publication revision and projection type. Verification checks record counts, link resolution, sample traversals, access labels, source digests, and index coverage. Activation changes a pointer or routing policy only after every required projection is `READY`. Optional projections can fail without blocking activation when the publication policy defines a safe fallback.
+
+### 74.4 Query-led retrieval
+
+In the query-led embodiment:
+
+1. classify or deterministically map the interaction to zero or more topic and entity identifiers;
+2. build an authorization scope from tenant, service, actor, character, conversation, channel, audience, and consent information;
+3. query text, vector, graph, or relational indexes for candidates;
+4. reject candidates whose source revision is not active;
+5. reject candidates outside the authorization scope;
+6. rank by relevance, authority, character perspective, temporal validity, confidence, and budget;
+7. expand selected graph neighbors up to configured depth and fan-out;
+8. fetch the authoritative source passages or records;
+9. add accepted items to the Context Manifest.
+
+### 74.5 Graph-led retrieval
+
+In the graph-led embodiment:
+
+1. resolve the active scene, participant, topic, and publication nodes;
+2. traverse only predicates permitted by the current workflow and acting character;
+3. stop at visibility or consent boundaries;
+4. calculate candidate paths and retain the path from seed to result;
+5. rank paths by length, predicate policy, source authority, temporal validity, and confidence;
+6. fetch textual descriptions only for the selected nodes;
+7. record node IDs, edge IDs, and path provenance in the Context Manifest.
+
+### 74.6 Rule-led retrieval
+
+In the rule-led embodiment, a deterministic rule maps workflow state to exact concept, memory, or relationship identifiers. No semantic search or model classification is required. This embodiment is used for required story facts, safety constraints, fixed quest state, or other knowledge that must not be omitted by a relevance scorer.
+
+### 74.7 Hybrid retrieval
+
+The hybrid embodiment executes query-led, graph-led, and rule-led retrieval in parallel or sequence. Required rule results are reserved first. Remaining context budget is allocated among graph, full-text, vector, recent-history, and memory results. Duplicate source records are merged by stable identifier, not by text equality alone.
+
+### 74.8 Memory candidate extraction and commit
+
+After an interaction, a deterministic rule, model, tool, or creator action produces a Memory Candidate:
+
+```json
+{
+  "memory_candidate_id": "memory-candidate:01J...",
+  "source_interaction_id": "interaction:abc",
+  "subject_id": "actor:123",
+  "proposed_predicate": "prefers_topic",
+  "proposed_object_id": "topic:astronomy",
+  "memory_kind": "actor_preference",
+  "topic_ids": ["topic:astronomy"],
+  "proposed_visibility": "private_direct_chat",
+  "confidence": 0.91,
+  "extractor_revision": "extractor:3"
+}
+```
+
+The commit procedure:
+
+1. verifies the source interaction and actor scope;
+2. validates schema and topic identifiers;
+3. applies memory-write eligibility and consent policy;
+4. finds exact, contradictory, superseded, and semantically similar records;
+5. chooses one configured action: create, reinforce, supersede, retain-both, request-confirmation, route-to-review, or discard;
+6. writes the authoritative record and an outbox event in one transaction;
+7. asynchronously updates graph, text, vector, and cross-channel projections;
+8. records the resulting source-to-derived linkage.
+
+Each action is a complete policy alternative. A deployment can assign different actions by memory kind or sensitivity.
+
+## 75. Complete multi-party and character-to-character processing procedures
+
+### 75.1 Event admission
+
+For every external event, the Channel Adapter:
+
+1. authenticates the source;
+2. derives a stable channel-event identifier;
+3. maps channel-local actor, conversation, thread, destination, and message identifiers;
+4. stores an idempotency record before acknowledging asynchronous processing;
+5. writes a Normalized Event containing one origin actor and one source message;
+6. routes the event to a conversation coordinator by tenant, service, and conversation scope;
+7. retains channel-specific reply correlation outside the channel-neutral event.
+
+One external event is not required to represent a complete conversational turn.
+
+### 75.2 Turn-formation embodiments
+
+The coordinator implements one of the following complete algorithms or selects among them by conversation policy:
+
+1. **Immediate event turn:** seal a turn after one admitted event.
+2. **Fixed window:** collect eligible events for a fixed duration from the first event.
+3. **Quiet window:** reset a timer after each eligible event and seal after the configured quiet period.
+4. **Maximum-count window:** seal when the number of source messages reaches a limit.
+5. **Explicit actor signal:** seal when an actor sends an end-of-turn command or UI action.
+6. **Moderator signal:** a human or character moderator selects and seals a source set.
+7. **Thread boundary:** group events with the same reply/thread/topic identifier.
+8. **Scene-controller boundary:** a game, meeting, or story controller emits a turn-ready event.
+9. **Model-proposed grouping:** a model proposes a source set; deterministic policy checks membership, limits, time range, and authorization before sealing it.
+10. **High-volume selection:** rank events and select one or a bounded subset while recording which admitted events were not selected.
+
+A sealed turn contains immutable source interaction IDs. Late events create a later turn unless an explicit revision policy allows reopening. Reopening creates a new Turn Record revision; it does not mutate a turn whose effects have already committed.
+
+### 75.3 Participant snapshot
+
+Before speaker selection, the coordinator creates or resolves a participant snapshot containing:
+
+- actor and character participant identifiers;
+- participant kind and conversation role;
+- membership start and end;
+- current channel presence;
+- visibility and audience membership;
+- character and policy revisions;
+- mute, block, moderation, eligibility, and rate-control state;
+- per-participant language or presentation preferences;
+- state revision numbers used for concurrency control.
+
+The snapshot is immutable for one execution. Membership changes that arrive later produce a new snapshot or cancel the execution according to policy.
+
+### 75.4 Speaker-selection embodiments
+
+The following speaker selectors are each disclosed:
+
+1. fixed character for the destination;
+2. round-robin among eligible characters;
+3. deterministic priority by event type, mention, role, or scene;
+4. rule table mapping topic and workflow state to character;
+5. weighted random selection using recorded seed and weights;
+6. auction or score selection where each character computes a willingness score;
+7. model selection from an allow-listed candidate set;
+8. parallel candidate generation followed by deterministic arbitration;
+9. parallel candidate generation followed by model arbitration;
+10. human or moderator selection;
+11. multiple-speaker selection with sequential output;
+12. multiple-speaker selection with simultaneous or unordered output where the channel supports it;
+13. no-speaker selection, producing an intentional non-response state.
+
+Every selector receives only eligible participants. A model cannot introduce an unregistered speaker identifier.
+
+### 75.5 Per-speaker context assembly
+
+For each selected character, the coordinator constructs a separate context:
+
+1. shared turn messages permitted for that character;
+2. shared scene and world state;
+3. the character's immutable definition and belief view;
+4. directional Character-to-Actor and Character-to-Character relationships;
+5. actor-specific memory allowed for the current audience;
+6. private character goals and observations;
+7. current workflow objective and speaker constraints;
+8. output audience and destination capabilities.
+
+The contexts can be evaluated sequentially, in parallel from one shared state snapshot, or iteratively so later speakers observe earlier committed outputs. The chosen evaluation mode is recorded.
+
+### 75.6 State-transition and output commit
+
+The coordinator produces a Proposed Turn Result containing:
+
+- speaker-identified output intents;
+- shared scene mutations;
+- character-private mutations;
+- actor-memory candidates;
+- directional relationship mutations;
+- tool requests or external-effect intents;
+- expected prior revision for every mutated state scope.
+
+Commit uses one of these embodiments:
+
+1. one database transaction for all affected state and outbox records;
+2. optimistic conditional writes per scope plus a coordinating commit record;
+3. a durable workflow saga with compensating transitions;
+4. an event-sourced append followed by projection updates;
+5. a single-threaded actor or workflow instance owning the scene;
+6. distributed transactions where the selected infrastructure provides acceptable semantics.
+
+If a required precondition fails, the system re-reads state and retries speaker processing, rejects the turn, or performs a configured reconciliation. It does not silently commit only an arbitrary subset of required shared/private transitions.
+
+### 75.7 Character-to-character execution
+
+A Character Output Event can become an input event for another character. The event contains:
+
+- source character and revision;
+- source output-intent identifier;
+- addressed character or candidate audience;
+- shared/private visibility;
+- scene and conversation identifiers;
+- state revision references;
+- causal parent event;
+- remaining turn, cost, time, and tool budgets.
+
+The receiving coordinator admits the event through the same idempotency and authorization boundaries as other internal events. The causal chain prevents duplicate continuation and permits loop detection.
+
+### 75.8 Autonomous-dialogue termination
+
+Termination is evaluated before and after each generated turn. The dialogue stops when any configured condition is true:
+
+- maximum turns reached;
+- wall-clock deadline reached;
+- model, token, monetary, or tool budget exhausted;
+- no eligible speaker;
+- explicit completion state reached;
+- repeated semantic state or output detected;
+- cycle in causal event identifiers detected;
+- human or operator cancellation;
+- channel destination no longer valid;
+- safety, consent, or authorization policy denies continuation;
+- required state conflict cannot be reconciled.
+
+The termination record identifies the condition and the last committed turn. Already committed effects remain durable unless an explicit compensation is authorized.
+
+### 75.9 Multi-party delivery
+
+For every output intent, the Channel Adapter:
+
+1. verifies destination, audience, speaker representation, and reply target;
+2. checks current channel capabilities and permission;
+3. converts semantic content to channel representation;
+4. assigns a durable delivery-effect identifier;
+5. sends, edits, defers, splits, redirects, or records non-delivery according to policy;
+6. records provider response and uncertain-delivery state;
+7. retries only when the effect policy permits.
+
+If a channel cannot display distinct character identities, the adapter prepends or otherwise renders a speaker label, uses separate channel accounts/webhooks, sends a combined transcript, or rejects the unsupported plan. These are separate presentation embodiments and do not alter the domain speaker identity.
+
+## 76. Complete identity-link and consent-scoped continuity procedures
+
+### 76.1 Identity-link verification embodiments
+
+A service creates an Identity Link only after one configured verification method succeeds:
+
+1. authenticated login to a shared service account from both channels;
+2. one-time code generated on one channel and submitted on the other;
+3. signed deep link or QR code containing a short-lived challenge;
+4. operator-assisted verification;
+5. cryptographic proof or user-controlled key;
+6. imported continuity package signed or encrypted for the actor;
+7. pairwise pseudonymous token without a global canonical actor;
+8. organization identity-provider assertion.
+
+The challenge is single-use, expires, is bound to the intended local identities, and is stored separately from reusable channel credentials. Replayed or mismatched challenges fail without changing existing links.
+
+### 76.2 Consent-grant creation
+
+After identity verification, the service presents or otherwise obtains a Continuity Sharing Grant containing the requested:
+
+- source scopes;
+- destination scopes;
+- characters;
+- topics or ontology subgraphs;
+- memory kinds or exact memory identifiers;
+- relationship dimensions or summaries;
+- purposes;
+- audience limits;
+- valid time;
+- retention and derived-data behavior.
+
+The grant is created only from the actor or an authorized administrator according to service policy. Its immutable revision and activation time are recorded. A changed grant creates a new revision.
+
+### 76.3 Authorization predicate
+
+For each candidate continuity item `i`, grant `g`, and destination context `d`, authorization is:
+
+```text
+ALLOW(i, g, d) =
+    g.status == ACTIVE
+AND current_time is within g.validity
+AND i.owner_actor == g.actor
+AND i.source_scope matches g.source_scopes
+AND d.destination_scope matches g.destination_scopes
+AND d.character matches g.allowed_characters
+AND i.topic intersects g.allowed_topics
+AND i.kind matches g.allowed_memory_kinds
+AND d.purpose matches g.purpose
+AND d.audience is no broader than g.audience_limit
+AND i.visibility permits d.audience
+AND no higher-priority deny rule matches
+```
+
+The comparison supports exact identifiers, subtree membership in a topic ontology, label sets, relationship predicates, policy expressions, or explicit allow-lists. A deployment fixes the comparison semantics in the policy revision.
+
+### 76.4 Topic-assignment embodiments
+
+Each continuity item obtains topic identifiers through one or more complete methods:
+
+1. creator-supplied topic identifier;
+2. deterministic dictionary or rule mapping;
+3. link to a concept in the active knowledge graph;
+4. model classification constrained to an allow-listed topic taxonomy;
+5. embedding nearest-neighbor assignment followed by threshold and policy checks;
+6. actor selection at memory-creation time;
+7. human review;
+8. inherited topic from conversation, scene, quest, tool, or source document;
+9. no topic assignment, causing the item to remain non-shareable unless explicitly allow-listed.
+
+The system records the assignment method and revision. Reclassification creates a new derived projection without changing the source interaction.
+
+### 76.5 Relationship-sharing embodiments
+
+A grant shares one of:
+
+1. the complete directional Relationship Record;
+2. named relationship dimensions;
+3. a coarse stage identifier;
+4. a threshold result such as `trusted == true`;
+5. a natural-language summary with source relation revision;
+6. selected evidence events;
+7. only changes occurring after grant activation;
+8. a destination-specific projection;
+9. no relationship data.
+
+The destination does not infer unshared dimensions from a shared total score unless the policy explicitly permits that derivation.
+
+### 76.6 Retrieval-time filtering
+
+The Memory or Knowledge Service retrieves broad candidates within the actor scope, evaluates the authorization predicate for each item, and returns only allowed items. The Context Manifest records the grant revision for every cross-channel item.
+
+This method always evaluates the latest active grant but performs more policy work per query.
+
+### 76.7 Materialized destination projection
+
+When a grant activates or source memory changes, an outbox event builds a destination-specific projection keyed by actor, character, destination, purpose, and audience class. Runtime reads that projection and rechecks grant status before use.
+
+This method reduces query latency. Every projected record retains source and grant identifiers so revocation, deletion, and reclassification can invalidate it.
+
+### 76.8 Encrypted user-carried continuity
+
+An actor exports selected memories and relationship summaries into a signed or encrypted package. The destination verifies the package, obtains actor consent, imports allowed items into a service-local scope, and records the source package digest.
+
+The package may be:
+
+- encrypted to the destination service;
+- encrypted with an actor-held key;
+- signed by the source service;
+- signed by the actor;
+- short-lived and single-use;
+- persistent and versioned.
+
+This embodiment transfers selected continuity without maintaining a server-side canonical identity link.
+
+### 76.9 Revocation processing
+
+Revocation executes:
+
+1. atomically mark the grant revision non-active;
+2. stop new projection jobs under that grant;
+3. emit a revocation event;
+4. find materialized projections, summaries, caches, and index entries carrying the grant ID;
+5. delete, tombstone, or rebuild each derived item;
+6. prevent stale workers from recreating revoked projections by checking grant revision at commit;
+7. record completion or retryable failure for every derived store;
+8. retain or remove audit data according to separate retention policy.
+
+Identity links and source records remain unchanged unless the actor separately requests unlinking or deletion.
+
+### 76.10 Example cross-channel execution
+
+An actor discusses astronomy with Character Alice through LINE and authorizes astronomy-related preference and relationship-summary continuity for private Discord conversations with Alice.
+
+When the actor later sends a private Discord message:
+
+1. the Discord Adapter resolves the local identity;
+2. Identity Service resolves the verified canonical actor;
+3. Context Assembly requests actor-memory candidates for Alice;
+4. Memory Service returns LINE-sourced candidates with topic and visibility metadata;
+5. Consent Service evaluates the active grant against Discord, Alice, private audience, and conversation-continuity purpose;
+6. astronomy items pass; unrelated health, employment, location, and other-character items fail;
+7. a permitted coarse relationship summary passes while unlisted relationship dimensions fail;
+8. accepted items enter the Context Manifest;
+9. generated output and any new memory retain Discord source scope;
+10. no item becomes eligible for a public Discord channel without a separate audience grant.
+
+## 77. State machines and transactional boundaries for the added embodiments
+
+### 77.1 Knowledge-statement lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Candidate
+  Candidate --> Validated
+  Candidate --> Rejected
+  Validated --> Active
+  Validated --> ReviewRequired
+  ReviewRequired --> Active
+  ReviewRequired --> Rejected
+  Active --> Superseded
+  Active --> Expired
+  Active --> Deleted
+  Superseded --> Deleted
+  Expired --> Deleted
+```
+
+Candidate records are not automatically authoritative. A policy can activate deterministic source data immediately, require creator review for world facts, require actor confirmation for sensitive memory, or retain model inferences as non-authoritative candidates.
+
+### 77.2 Multi-party turn lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Collecting
+  Collecting --> Sealed
+  Collecting --> Cancelled
+  Sealed --> ContextResolved
+  ContextResolved --> SpeakersSelected
+  SpeakersSelected --> Generated
+  Generated --> DomainCommitted
+  Generated --> Rejected
+  DomainCommitted --> DeliveryPending
+  DeliveryPending --> Delivered
+  DeliveryPending --> DeliveryUncertain
+  DeliveryPending --> DeliveryFailed
+```
+
+`DomainCommitted` is the authoritative side-effect boundary. Delivery retries reuse output-intent and effect identifiers rather than regenerating the turn.
+
+### 77.3 Consent-grant lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Proposed
+  Proposed --> Active
+  Proposed --> Declined
+  Active --> Narrowed
+  Active --> Revoked
+  Active --> Expired
+  Narrowed --> Active
+  Narrowed --> Revoked
+  Revoked --> CleanupPending
+  Expired --> CleanupPending
+  CleanupPending --> CleanupComplete
+  CleanupPending --> CleanupFailed
+  CleanupFailed --> CleanupPending
+```
+
+Narrowing creates a new active revision and revokes the broader revision. Runtime authorization rejects non-active revisions even while derived cleanup is pending.
+
+### 77.4 Autonomous-dialogue lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Started
+  Started --> TurnReady
+  TurnReady --> Executing
+  Executing --> TurnCommitted
+  Executing --> Failed
+  TurnCommitted --> TurnReady
+  TurnCommitted --> Completed
+  TurnCommitted --> LimitReached
+  TurnCommitted --> Cancelled
+  Failed --> Retrying
+  Retrying --> Executing
+  Failed --> Terminated
+```
+
+The causal event ID, remaining budgets, participant snapshot, and last committed turn accompany every transition.
+
+### 77.5 Transaction boundaries
+
+The following boundaries remain distinct:
+
+- external-event admission;
+- turn sealing;
+- context and consent resolution;
+- model or rule evaluation;
+- authoritative domain transition;
+- outbox publication;
+- channel delivery;
+- derived-index update;
+- revocation cleanup.
+
+An implementation may combine adjacent boundaries in one transaction when storage permits it. It does not claim atomicity across a boundary that is actually asynchronous. Every asynchronous handoff has a durable record, stable identity, retry policy, and reconciliation state.
+
+## 78. Failure handling, variant coverage, and technical effects
+
+### 78.1 Failure handling
+
+**Knowledge source unavailable:** use an already verified active projection, an immutable local bundle, a configured reduced-context path, or fail closed for required knowledge. Do not substitute another tenant, world, or publication revision.
+
+**Graph traversal exceeds limits:** stop at configured depth/fan-out/cost, retain already authorized results, mark truncation in provenance, and continue or fail according to whether omitted knowledge was optional.
+
+**Conflicting statements:** select by perspective and policy, return an explicit conflict set, request clarification, route to review, or retain both. Do not overwrite solely by latest arrival when source authority or validity differs.
+
+**Turn-formation worker crashes:** reload the collecting or sealed Turn Record, deduplicate source interactions, and resume with the same turn identity.
+
+**Speaker selection times out:** use a deterministic fallback selector, intentional non-response, or failed-turn state. Do not allow an unconstrained model to invent a participant.
+
+**One character generation fails:** reject the whole required turn, commit successful independent outputs only when policy marks them optional, retry the failed speaker, or use a fixed fallback. The selected behavior is recorded.
+
+**State conflict at commit:** re-read and re-evaluate, serialize through the owning scope, reject stale output, or run compensation. Do not deliver output whose required state transition was rejected unless the workflow explicitly permits it.
+
+**Identity resolution unavailable:** use channel-local continuity, return a reduced-context response, or fail the cross-channel branch. Do not guess canonical identity.
+
+**Consent Service unavailable:** fail closed for cross-channel private data, use a locally verified non-expired grant snapshot where policy permits, or omit all cross-channel items.
+
+**Revocation cleanup partially fails:** keep the grant inactive, retry each derived store independently, and prevent new materialization with revision checks.
+
+**Delivery becomes uncertain:** record the provider request and output-effect identity, reconcile before retry where possible, and do not regenerate domain state merely to resend.
+
+### 78.2 Independently disclosed scope variants
+
+Knowledge and continuity are keyed by any one or combination of:
+
+- tenant;
+- service;
+- world or IP;
+- publication;
+- character;
+- actor;
+- actor-character pair;
+- character-character direction;
+- conversation;
+- group, room, broadcast, thread, scene, quest, or game session;
+- channel type;
+- channel instance;
+- audience;
+- purpose;
+- topic or ontology subgraph;
+- time interval.
+
+The key can be materialized directly, calculated from component identifiers, represented as graph membership, or enforced by authorization policy.
+
+### 78.3 Independently disclosed update variants
+
+Knowledge, memory, and relationship updates use:
+
+- mutable current records with optimistic versions;
+- immutable revisions;
+- append-only events plus current projections;
+- bitemporal valid-time and transaction-time records;
+- CRDT or mergeable structures for selected non-conflicting dimensions;
+- creator-reviewed publication replacement;
+- actor-confirmed sensitive memory;
+- automated extraction with later review;
+- expiration and tombstones;
+- destination-specific derived summaries.
+
+### 78.4 Independently disclosed model-use variants
+
+Models are used for any subset of:
+
+- entity and topic recognition;
+- statement extraction;
+- relation extraction;
+- candidate ranking;
+- graph-query generation;
+- contradiction detection;
+- memory summarization;
+- speaker selection;
+- character response generation;
+- arbitration among character proposals;
+- evaluation and policy classification.
+
+Every model-directed step has a deterministic input schema, bounded candidate set where applicable, structured output validation, revisioned model policy, timeout, failure path, and provenance. Any step can instead use rules, human selection, or a non-model algorithm.
+
+### 78.5 Independently disclosed deployment variants
+
+The complete procedures run:
+
+- in one application process with one transactional database;
+- in a modular monolith with background workers;
+- as independent Knowledge, Memory, Identity, Consent, Conversation Coordinator, and Delivery services;
+- in durable workflow instances;
+- in actor-model instances keyed by conversation or scene;
+- through ordered broker partitions or sessions;
+- as event-sourced services with derived projections;
+- through serverless functions and managed databases;
+- through self-hosted cloud components satisfying the same durability and access boundaries.
+
+The physical topology does not change the logical records and processing boundaries disclosed above.
+
+### 78.6 Technical effects
+
+The disclosed arrangements provide the following technical effects:
+
+- world facts, character beliefs, actor statements, and inferences can coexist without corrupting one global truth record;
+- creator-editable knowledge remains portable while runtime indexes are replaceable;
+- exact source revision and retrieval path can be reproduced or compared;
+- large knowledge collections are traversed selectively rather than inserted wholesale into model context;
+- private actor memory is prevented from entering unauthorized character, channel, or audience contexts;
+- verified identity linkage is separated from permission to reuse data;
+- consent can be narrowed by topic, relation, purpose, destination, character, audience, and time;
+- revocation can invalidate derived cross-channel data without destroying unrelated local history;
+- many independently admitted events can form one idempotent multi-party turn;
+- multiple characters can share a scene without sharing all private state;
+- character-to-character dialogue is bounded by explicit causal, cost, time, effect, and termination rules;
+- Direct Chat remains simple while separately versioned Multi-party contracts add participant and speaker semantics;
+- domain state, delivery, projection building, and cleanup recover independently after partial failure.
+
+### 78.7 Additional explicit combinations
+
+### Combination AS — OKF source, RDF projection, and vector passage retrieval
+
+A pinned OKF bundle is authoritative creator content; ingestion emits an RDF dataset and a vector index; graph paths and retrieved passages share stable concept IDs and source revision.
+
+### Combination AT — Property graph with bitemporal character beliefs
+
+World and belief statements occupy a property graph with valid-time and transaction-time qualifiers; runtime selects the acting character's belief view at the scene time.
+
+### Combination AU — Event-sourced actor memory with materialized consent views
+
+Interaction-derived memory events are authoritative; per-destination consent projections provide low-latency retrieval and are rebuilt after grant changes.
+
+### Combination AV — Quiet-window multi-user turn with parallel character proposals
+
+A coordinator seals actor messages after a quiet period, invokes eligible characters in parallel from one state snapshot, arbitrates outputs, and commits selected shared/private transitions.
+
+### Combination AW — Character dialogue as a causal event graph
+
+Each Character Output Event points to its causal parent; duplicate continuation and loops are detected by event identity and path; budgets travel with the causal chain.
+
+### Combination AX — Pairwise identity link without a global actor identifier
+
+Two channel-local identities share a pairwise continuity namespace and scoped grant, while no system-wide canonical actor is created.
+
+### Combination AY — User-carried encrypted continuity package
+
+An actor exports selected memory and relationship summaries, transfers an encrypted or signed package, and imports them into a destination-local scope without persistent server-side identity federation.
+
+### Combination AZ — Public room with topic-scoped private history
+
+A room workflow resolves a verified actor but admits only memories whose grant explicitly permits the topic, character, purpose, and public audience; all other linked history remains excluded.
+
+### 78.8 Additional technical propositions
+
+### TP-28 — Qualified multi-perspective statement storage
+
+A knowledge system stores subject, predicate, object, perspective holder, truth mode, source, validity, visibility, scope, consent, and revision so conflicting character beliefs and world facts remain independently retrievable.
+
+### TP-29 — Deterministic OKF publication and projection activation
+
+A linked-document bundle is validated, hashed, fixed as an immutable revision, projected into one or more runtime stores, verified, and activated through a revision pointer without mutating earlier publications.
+
+### TP-30 — Scope-aware hybrid retrieval with manifest
+
+Rule, graph, text, and vector retrieval produce candidates that are filtered by actor, character, audience, channel, topic, consent, validity, and publication revision before a context manifest records the selected source records.
+
+### TP-31 — Idempotent many-to-many turn sealing
+
+Individually admitted source interactions are collected under a formation policy, sealed into an immutable Turn Record, and processed once using source-event deduplication and turn-level state identity.
+
+### TP-32 — Per-character context isolation in shared coordination
+
+A multi-character coordinator creates distinct authorized contexts for each selected character while sharing only scene information marked for common visibility.
+
+### TP-33 — Causal-budgeted autonomous conversation
+
+Character-generated events carry causal parent and remaining resource budgets so recursive character dialogue terminates deterministically and does not duplicate committed effects.
+
+### TP-34 — Identity correspondence separated from continuity authorization
+
+A verified Identity Link establishes correspondence among channel identities, while a separately revisioned grant controls which topics, memories, relationships, characters, destinations, audiences, purposes, and times permit reuse.
+
+### TP-35 — Revocation-safe derived data
+
+Every cross-channel projection carries source and grant revisions; inactive grants block reads and stale writes while asynchronous cleanup removes or rebuilds derived data.
+
+### TP-36 — Coexistence of direct and coordinated interaction contracts
+
+A one-message Direct Chat contract and a participant-aware Multi-party contract share stable identifiers and Core Services while evolving under separate compatibility versions.
+
+## 79. Additional detailed figures
+
+### Figure 15 — Qualified statement and perspective separation
+
+```mermaid
+flowchart TB
+  S[Subject]
+  P[Predicate]
+  O[Object]
+  Q[Perspective and Time]
+  V[Visibility and Consent]
+  R[Qualified Statement]
+  S --> R
+  P --> R
+  O --> R
+  Q --> R
+  V --> R
+```
+
+### Figure 16 — Multi-party turn transaction
+
+```mermaid
+flowchart TB
+  A[Admitted Events]
+  T[Sealed Turn]
+  C[Per-Speaker Contexts]
+  G[Generated Proposals]
+  D[Domain Commit]
+  X[Delivery Effects]
+  A --> T --> C --> G --> D --> X
+```
+
+### Figure 17 — Identity and consent are separate
+
+```mermaid
+flowchart TB
+  L[Local Identities]
+  I[Verified Identity Link]
+  C[Continuity Grant]
+  M[Candidate Memory]
+  A[Authorization Predicate]
+  D[Destination Context]
+  L --> I --> C
+  C --> A
+  M --> A
+  D --> A
+```
+
+### Figure 18 — Revocation and derived cleanup
+
+```mermaid
+stateDiagram-v2
+  Active --> Revoked
+  Revoked --> ReadBlocked
+  ReadBlocked --> CleanupPending
+  CleanupPending --> CleanupComplete
+  CleanupPending --> CleanupFailed
+  CleanupFailed --> CleanupPending
+```
+
 ---
 
 Copyright (c) 2026 Akihiro Fujimoto. Licensed under the MIT License as part of the Roidoya Character Chat Platform repository unless otherwise stated.
