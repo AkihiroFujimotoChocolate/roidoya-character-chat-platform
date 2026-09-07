@@ -1,19 +1,19 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
-**Status:** Third Public Edition  
-**Edition:** 2026-09-07  
-**Publication date:** 2026-09-07 (Asia/Tokyo)  
-**Author:** Akihiro Fujimoto  
-**Project:** Roidoya Character Chat Platform (RCCP)  
-**Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`  
-**Canonical path:** `docs/publications/rccp-architecture-and-technical-disclosure.md`  
+**Status:** Fourth Public Edition\
+**Edition:** 2026-09-08\
+**Publication date:** 2026-09-08 (Asia/Tokyo)\
+**Author:** Akihiro Fujimoto\
+**Project:** Roidoya Character Chat Platform (RCCP)\
+**Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
+**Canonical path:** `docs/publications/rccp-architecture-and-technical-disclosure.md`\
 **License:** MIT License, consistent with the repository license unless otherwise stated
 
 ## Abstract
 
-Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, and multiple concrete implementations using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, and model APIs. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures.
+Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, and capability-aware structured expression. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, and model APIs.
 
-**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; live-chat character system; derived-state migration; execution provenance
+**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; live-chat character system; derived-state migration; execution provenance
 
 > This document describes implementable technical architectures and embodiments for building and operating character-chat services with RCCP. It includes both implemented and not-yet-implemented arrangements. A described embodiment does not imply that it is currently implemented, selected as the only supported architecture, or claimed to be novel.
 
@@ -32,6 +32,11 @@ This disclosure focuses on technical arrangements for:
 - representing world facts, character beliefs, actor memories, and relationships through ontologies, knowledge graphs, portable knowledge bundles, or equivalent structured records;
 - coordinating direct, group, room, broadcast, many-to-many, and character-to-character interactions without collapsing their participant, speaker, audience, or privacy scopes;
 - linking channel-local identities while authorizing cross-channel reuse separately by topic, relationship, character, destination, audience, purpose, and time;
+- evaluating user input, retrieved content, tool results, model output, and rendered output through versioned pattern, rule, dictionary, morphological, and classifier policies with explicit precedence and safe exceptions;
+- identifying message-level or span-level language through replaceable existing libraries, then applying creator-, operator-, or developer-controlled allowed-language behavior without treating language identification itself as an RCCP-specific invention;
+- separating untrusted content from instructions and enforcing authorization, tool, memory-write, and output boundaries even when prompt-injection detection is uncertain or fails;
+- maintaining character-specific global mood, target-directed emotion, relationship state, expression intent, and channel-rendered behavior as distinct but related records;
+- producing validated structured character output containing text, emotion, facial expression, gesture, pose, animation cues, or other semantic intents and transforming it according to Channel capabilities;
 - preserving stable contracts while allowing implementations and infrastructure to change;
 - maintaining correctness in horizontally scaled or multi-instance deployments;
 - controlling duplicate processing, concurrency, backlog, rate limits, and external-provider failures;
@@ -59,6 +64,11 @@ Representative problems include:
 10. **An ingress event is not necessarily a conversational turn.** Group, room, broadcast, and many-to-many interaction may require multiple actor events, multiple eligible character speakers, deterministic turn sealing, causal ordering, and speaker-identified delivery.
 11. **Shared scenes can leak or corrupt private state.** Multiple actors and characters can participate in one interaction while each character, actor, relationship, and audience has a different authorized view and a different state-transition scope.
 12. **Identity correspondence does not itself authorize data reuse.** Proving that two channel-local identities belong to the same actor must remain separate from deciding which memories, relationships, topics, purposes, destinations, and audiences may cross the channel boundary.
+13. **Naive pattern matching causes both missed detections and false positives.** Raw, normalized, tokenized, lemmatized, and classified forms can disagree; unrestricted substring matching can reject permitted compound words; and an exception can become an unintended bypass if its scope and precedence are not explicit.
+14. **Language identification and language permission are different decisions.** Short messages, mixed-language text, names, code, emoji, and uncertain detector output require a normalized result and a separately versioned policy that can allow, translate, clarify, refuse, route, or return a fixed response.
+15. **Prompt injection cannot be reduced to a prohibited-term list.** Direct user instructions and indirect instructions embedded in retrieved documents, tool results, files, images, or prior memory can attempt to cross trust boundaries even when no known attack phrase matches.
+16. **A character's felt emotion is not the same as its displayed expression.** The character can feel one emotion toward one entity, discuss another entity, address a third participant, and intentionally display a different expression to an audience.
+17. **Structured expressive output requires semantic validation and capability negotiation.** A model-generated facial expression, pose, gesture, or animation identifier cannot be passed directly to every Channel or renderer, and malformed or unsupported output requires deterministic fallback.
 
 The disclosed architecture addresses these problems through explicit responsibility boundaries, stable contracts, replaceable implementations, orchestration, shared reliability mechanisms, and concrete failure-handling rules.
 
@@ -121,6 +131,26 @@ A verified correspondence between two or more channel-local identities or betwee
 ### 3.14 Continuity Sharing Grant
 
 A revisioned authorization that permits selected continuity data to be reused across specified identity, topic, relation, character, destination, audience, purpose, and time scopes. The grant can be narrowed, superseded, revoked, expired, or deleted independently of an Identity Link.
+
+### 3.15 Text representation
+
+A versioned view derived from immutable raw text for a specific evaluation purpose. Examples include Unicode-normalized text, case-folded text, script-normalized text, token sequences, dictionary forms, readings, and classifier feature input. A Text Representation retains a mapping to raw offsets so a result can be explained, rendered, or re-evaluated after a policy or analyzer revision.
+
+### 3.16 Policy rule and policy decision
+
+A Policy Rule declares a condition, scope, priority, provenance, and action. A Policy Decision is the immutable result of evaluating one or more rules and model-based signals against a versioned input. A match is evidence; it is not automatically the final action.
+
+### 3.17 Language Detection Result
+
+A normalized record produced by a replaceable language-detection adapter. It can contain message-level and span-level language candidates, script, detector-specific raw scores, calibrated confidence, reliability, model and library revisions, and the evaluated Text Representation. It does not itself allow or prohibit a language.
+
+### 3.18 Affect state
+
+A versioned record of emotion or mood experienced by a character. An Affect State can identify an experiencer, target, cause, category or dimensional value, intensity, confidence, validity interval, decay, privacy, provenance, and revision. It is separate from long-lived Relationship State and externally rendered Expression Intent.
+
+### 3.19 Expression intent
+
+A validated, channel-neutral semantic description of what a character intends to communicate or display, such as text, emotion label, facial expression, gesture, pose, voice style, or animation cue. A Channel Adapter or renderer maps the intent to supported capabilities and assets.
 
 ## 4. Logical architecture
 
@@ -5563,6 +5593,897 @@ stateDiagram-v2
   CleanupPending --> CleanupFailed
   CleanupFailed --> CleanupPending
 ```
+
+## 80. Layered input and output pattern/rule evaluation
+
+An RCCP deployment can evaluate user input, Channel events, retrieved content, tool results, model output, memory or state candidates, and rendered output through one versioned Policy Evaluation contract. Replaceable evaluators produce recorded evidence, exceptions, conflict resolution, and actions. The same contract supports creator workflows and character behavior as well as operator or developer safety, security, output, and audit policy.
+
+### 80.1 Evaluation surfaces
+
+Each evaluation declares a `surface` and `direction`. Independently implementable surfaces include:
+
+- `channel_input_raw`: immutable user- or Channel-supplied content before semantic normalization;
+- `channel_input_normalized`: the normalized interaction accepted by the Channel Adapter;
+- `retrieved_content`: knowledge, memory, Web, file, or search content before it enters model context;
+- `tool_result`: data returned by a tool or external system;
+- `model_text_output`: model-generated natural language before delivery;
+- `model_structured_output`: model-generated JSON or another structured payload;
+- `memory_candidate`: information proposed for durable retention;
+- `domain_transition`: a proposed state, relationship, story, or affect change;
+- `rendered_output`: Channel-specific text, media, metadata, action, or asset selection immediately before egress.
+
+A deployment can evaluate every surface, a configured subset, or multiple times at different trust boundaries. Passing one surface does not imply that later surfaces are accepted.
+
+### 80.2 Immutable raw content and derived Text Representations
+
+The raw content is retained or referenced according to the applicable retention and privacy policy. Evaluation does not destructively replace it. Instead, the evaluator creates one or more immutable Text Representations and an offset map between each representation and the raw content.
+
+Representations can include decoded Unicode; separately identified NFC and NFKC views; case-folded or whitespace-normalized text; views identifying configured zero-width, bidi-control, variation, confusable, or transliterated characters; script, grapheme, code-point, byte, word, sentence, or Channel-part segmentation; language-specific token, lemma, dictionary-form, reading, pronunciation, or part-of-speech sequences; and classifier features or embedding references. Invalid-sequence handling and mappings back to raw positions are recorded.
+
+Every span declares its offset unit and boundary convention. Unless an example states otherwise, spans below use zero-based Unicode code-point offsets with an inclusive `start` and exclusive `end`; implementations using UTF-8 bytes, UTF-16 code units, or grapheme clusters label that unit and retain a mapping to raw content.
+
+Canonical and compatibility normalization serve different purposes and are not silently treated as equivalent. A rule declares which representation it consumes. Unicode normalization can follow Unicode Standard Annex #15 at <https://unicode.org/reports/tr15/>. The publication revision records the Unicode data version and any additional mapping table.
+
+### 80.3 Language-appropriate morphological analysis
+
+When token, lemma, dictionary-form, or reading-aware matching is enabled, a Language Analysis Adapter selects an existing analyzer by language, script, deployment environment, and publication revision. For Japanese, independently disclosed embodiments include MeCab, Sudachi or SudachiPy, and Apache Lucene Kuromoji. MeCab is documented at <https://taku910.github.io/mecab/>, Sudachi at <https://github.com/WorksApplications/sudachi.rs>, and Kuromoji at <https://lucene.apache.org/core/10_3_2/analysis/kuromoji/index.html>.
+
+The analyzer result can contain:
+
+```json
+{
+  "analysis_id": "ta_01JPN",
+  "language_tag": "ja",
+  "analyzer": {
+    "adapter_id": "japanese-morphology",
+    "implementation": "mecab",
+    "library_version": "deployment-pinned-version",
+    "dictionary_id": "deployment-dictionary",
+    "dictionary_digest": "sha256:example"
+  },
+  "source_representation_id": "tr_nfkc_01",
+  "tokens": [
+    {
+      "surface": "話し",
+      "dictionary_form": "話す",
+      "reading": "ハナシ",
+      "part_of_speech": ["verb"],
+      "raw_span": {"start": 12, "end": 18}
+    }
+  ],
+  "status": "complete"
+}
+```
+
+An analyzer or dictionary revision is pinned by an immutable Character Publication or Policy Publication. A missing analyzer, unknown word, dictionary mismatch, timeout, or parse failure produces an explicit analysis status. The policy can continue using surface-form rules, hold the interaction, route to another analyzer, or apply a configured conservative action.
+
+### 80.4 Match methods
+
+Each of the following is an independent matching embodiment and can also be combined with the others:
+
+- exact match of a complete message, content part, line, sentence, token, lemma, or field;
+- prefix, suffix, or substring match;
+- regular-expression match with a bounded engine, input length, execution time, and match count;
+- dictionary, trie, Aho-Corasick, finite-state, or equivalent multi-pattern match;
+- token-sequence, lemma-sequence, reading-sequence, or part-of-speech pattern;
+- approximate edit-distance, phonetic, transliteration, or confusable-character match;
+- metadata match against actor, Channel, topology, locale, Character, tool, content type, or trust class;
+- statistical or machine-learning classifier;
+- model-based classification constrained to a schema;
+- an ensemble in which deterministic matches and classifier scores become separately weighted evidence.
+
+Deterministic and learned matchers return evidence rather than directly executing side effects. This separation allows the same evidence to produce different actions under a creator workflow, operator policy, or developer security boundary. It does not require all evidence types to have equal authority: a Policy Publication can designate selected deterministic keyword or dictionary matches as hard gates that a classifier result cannot override.
+
+### 80.5 Policy Rule record
+
+```json
+{
+  "rule_id": "rule:output:restricted-term:0042",
+  "revision": 7,
+  "publication_id": "policy-publication:2026-09-example",
+  "layer": "operator",
+  "scope": {
+    "tenant_ids": ["tenant:example"],
+    "character_ids": ["character:guide"],
+    "channel_types": ["line", "discord"],
+    "surfaces": ["channel_input_normalized", "model_text_output"]
+  },
+  "matcher": {
+    "kind": "prohibited_term_entry",
+    "entry_id": "term:ja:restricted-anatomical:0042",
+    "value": "マンコ",
+    "representation": "nfkc_casefolded",
+    "match_mode": "substring",
+    "exceptions": [
+      {
+        "exception_id": "exception:woman-communication",
+        "kind": "containing_phrase",
+        "value": "ウーマンコミュニケーション",
+        "effect": "suppress_owner_match_within_exception_span"
+      },
+      {
+        "exception_id": "exception:ultraman-cosmos",
+        "kind": "containing_phrase",
+        "value": "ウルトラマンコスモス",
+        "effect": "suppress_owner_match_within_exception_span"
+      }
+    ]
+  },
+  "priority": 800,
+  "decision_class": "deterministic_hard_gate",
+  "effect": "reject_or_regenerate",
+  "valid_from": "2026-09-07T00:00:00+09:00",
+  "enabled": true
+}
+```
+
+A rule can additionally declare content type, language, script, topology, participant role, audience, purpose, trust level, confidence threshold, required preceding evidence, state precondition, maximum applications per interaction, and expiry. The prohibited term itself and its exception list can be stored in one record as above, split into an entry plus referenced exception records, or loaded from a versioned dictionary whose entries carry the same fields.
+
+### 80.6 Match Evidence and Policy Decision records
+
+```json
+{
+  "evaluation_id": "eval_01JXYZ",
+  "surface": "channel_input_normalized",
+  "input_revision": "interaction:01JABC#1",
+  "policy_publications": [
+    "developer-policy:15",
+    "operator-policy:22",
+    "creator-policy:character-guide:8"
+  ],
+  "span_convention": {
+    "unit": "unicode_code_point",
+    "start": "inclusive",
+    "end": "exclusive"
+  },
+  "evidence": [
+    {
+      "evidence_id": "evidence:restricted-substring:1",
+      "rule_id": "rule:output:restricted-term:0042",
+      "matched": true,
+      "representation_id": "tr_nfkc_01",
+      "normalized_span": {"start": 4, "end": 7},
+      "raw_spans": [{"start": 4, "end": 7}],
+      "score": 1.0
+    },
+    {
+      "evidence_id": "evidence:exception:1",
+      "rule_id": "rule:output:restricted-term:0042",
+      "exception_id": "exception:ultraman-cosmos",
+      "matched": true,
+      "representation_id": "tr_nfkc_01",
+      "normalized_span": {"start": 0, "end": 10},
+      "raw_spans": [{"start": 0, "end": 10}],
+      "score": 1.0,
+      "suppresses_evidence_ids": ["evidence:restricted-substring:1"]
+    }
+  ],
+  "resolution": {
+    "winning_exception_ids": ["exception:ultraman-cosmos"],
+    "suppressed_evidence_ids": ["evidence:restricted-substring:1"],
+    "action": "allow",
+    "reason_code": "owner-rule-containing-phrase-exception"
+  },
+  "status": "decided"
+}
+```
+
+The decision contains only the evidence needed by its consumers. Sensitive rule text, a complete prohibited-term dictionary, raw user content, or security signatures can remain in an access-controlled evidence store while the workflow receives stable reason codes.
+
+### 80.7 Exact, partial, and exception semantics
+
+An exact rule declares its boundary, such as message, content part, line, sentence, token, lemma, or structured field. A partial rule declares substring, token-contained, prefix, suffix, or token-sequence semantics.
+
+An exception can be owned by the prohibited-term record, referenced by it, or represented as a rule-to-rule relationship. Independently disclosed forms include:
+
+1. **Owner-record safe-span suppression.** A prohibited-term entry contains or references permitted phrases. A permitted phrase suppresses only evidence produced by its owning prohibited-term entry whose match lies entirely within the permitted phrase's span.
+2. **Context predicate.** A match is excluded when a separately versioned metadata, language, actor role, quoted-text, code-block, or content-type condition holds.
+3. **Negative dictionary.** A permitted term list is evaluated before or together with a prohibited dictionary.
+4. **Longest-match resolution.** The longest valid lexical match wins when shorter matches are fully contained and both rules declare the same competition group.
+5. **Explicit override edge.** Rule A declares `suppresses: [B]`; cycles are rejected at publication time.
+6. **Scoped adjudication.** A reviewed false positive creates an expiring or permanent exception limited by tenant, Character, language, Channel, actor class, or phrase hash.
+
+For example, a prohibited Japanese term record can own `ウーマンコミュニケーション` and `ウルトラマンコスモス` as containing-phrase exceptions. Only that record's evidence wholly inside the permitted phrase is suppressed; other records and spans remain active.
+
+### 80.8 Deterministic conflict resolution
+
+One embodiment resolves evidence in this order:
+
+1. discard disabled, expired, or out-of-scope rules;
+2. verify that every referenced Text Representation and analyzer revision is available;
+3. evaluate deterministic rules and classifiers without executing actions;
+4. apply explicit suppression and delegation edges;
+5. reject an override graph containing a cycle or an unauthorized cross-layer edge;
+6. compare remaining rules by non-overridable security class, delegated authority, numeric priority, specificity, boundary strength, match length, and stable `rule_id` order;
+7. combine compatible actions or select the winning incompatible action;
+8. emit one immutable Policy Decision;
+9. execute only the action authorized for the evaluation surface.
+
+Other embodiments use a decision table, a policy engine, first-match order, severity aggregation, weighted scoring, or a learned meta-classifier. Each embodiment still records the policy revision and produces a deterministic or reproducibly bounded decision from its declared inputs.
+
+#### 80.8.1 Configurable matcher precedence
+
+The Policy Publication declares how deterministic keyword evidence relates to learned or model-based classification. Independent precedence embodiments include:
+
+- **Deterministic keyword first:** a designated exact, substring, regular-expression, or dictionary match selects its action even when a classifier labels the content safe or low risk.
+- **Classifier first:** a classifier decision controls the action while deterministic matches are explanatory features or escalation signals.
+- **Either can veto:** a hard decision from either the deterministic or learned path blocks or holds the content.
+- **Two-stage evaluation:** deterministic rules handle a narrow mandatory list; content without a terminal match proceeds to a classifier.
+- **Weighted ensemble:** rule evidence and classifier scores are combined under published thresholds.
+- **Context-dependent precedence:** the order changes by input/output direction, public/private audience, Character, Channel, campaign, or incident-response mode.
+
+An operator can select deterministic-keyword-first behavior for public or other high-reputational-risk output. Exact/partial modes, term-owned exceptions, scoped adjudication, and policy revision control false positives without permitting a classifier to cancel a hard match.
+
+```json
+{
+  "matcher_precedence": {
+    "profile": "deterministic_keyword_first",
+    "surfaces": ["model_text_output", "rendered_output"],
+    "terminal_decision_classes": ["deterministic_hard_gate"],
+    "classifier_role_after_terminal_match": "telemetry_only",
+    "classifier_may_override_terminal_match": false
+  }
+}
+```
+
+### 80.9 Developer, operator, and creator authority
+
+The authority hierarchy is explicit and versioned. Independent embodiments include:
+
+- **Monotonic restriction:** developer rules establish a non-overridable floor; operators and creators can only add restrictions or choose among allowed actions.
+- **Delegated relaxation:** developers define rule namespaces and limits that an operator may relax; the operator can delegate a narrower subset to a creator.
+- **Tenant-first policy:** an operator controls all tenant rules except immutable platform integrity rules; creators configure Character behavior inside the tenant envelope.
+- **Signed total ordering:** every rule carries an authority rank and signature, and a publication-time validator rejects ranks the signer is not authorized to issue.
+- **Intersection policy:** an interaction is allowed only when developer, operator, and creator decisions all allow it; each layer can return a different user-facing action.
+
+A production embodiment combines a non-overridable developer floor with explicit delegation. Operators can tighten it and select matcher precedence; creators configure Character behavior inside it. Lower layers cannot grant tool, data, or egress authority denied above or demote a hard gate without delegation.
+
+### 80.10 Actions and false-positive handling
+
+Possible actions include allow, annotate, trigger workflow, transform, mask, request clarification, return a fixed response, refuse, hold for review, omit a context item, route to another model, regenerate output, disable a tool request, discard a memory candidate, terminate a run, or create an operator incident.
+
+Detection and user-facing response remain separate. A match can produce a neutral response without revealing its rule; a creator trigger and operator delivery restriction can both apply; and classifier telemetry can remain recorded without overriding a deterministic hard gate.
+
+False-positive handling can use:
+
+- a review record linked to the evaluation, rule, publication, representation, and redacted evidence;
+- an appeal or operator-adjudication state;
+- temporary safe-span exceptions with expiry;
+- shadow evaluation before activation;
+- sampled review of allowed and blocked traffic;
+- per-rule precision, recall, override, and user-abandonment metrics;
+- replay against a fixed evaluation corpus before publishing a revision;
+- rollback to the previous immutable policy publication.
+
+The deployment declares fail-open, fail-closed, fixed-response, or hold behavior separately for each surface and failure type. A creator story trigger can fail open, while a tool-authorization rule fails closed.
+
+## 81. Replaceable language detection and allowed-language policy
+
+Language identification uses an existing library, model, service, or OSS component behind an RCCP Language Detection Adapter; no proprietary detector is required. RCCP defines the adapter, provenance, confidence and span handling, policy integration, and failure behavior.
+
+### 81.1 Language Detection Adapter
+
+The adapter accepts immutable text or a specified Text Representation and returns a normalized Language Detection Result. It does not directly reject the interaction.
+
+```json
+{
+  "detection_id": "langdet_01JXYZ",
+  "source_representation_id": "tr_nfc_01",
+  "detector": {
+    "adapter_id": "language-detection:v1",
+    "implementation": "fasttext",
+    "library_version": "deployment-pinned-version",
+    "model_id": "lid.176.bin",
+    "model_digest": "sha256:example",
+    "score_semantics": "implementation-specific"
+  },
+  "message_candidates": [
+    {"language_tag": "ja", "raw_score": 0.982, "calibrated_confidence": 0.96},
+    {"language_tag": "en", "raw_score": 0.012, "calibrated_confidence": 0.01}
+  ],
+  "spans": [
+    {"start": 0, "end": 18, "language_tag": "ja", "confidence": 0.97},
+    {"start": 18, "end": 29, "language_tag": "en", "confidence": 0.83}
+  ],
+  "scripts": ["Jpan", "Latn"],
+  "classification": "mixed",
+  "status": "complete"
+}
+```
+
+Raw scores from different detectors are not assumed to be comparable. An adapter can expose the raw value and a deployment-calibrated confidence separately. A result also records insufficient text, unsupported script, timeout, invalid encoding, or detector failure.
+
+### 81.2 Existing detector embodiments
+
+The following are independent replaceable embodiments:
+
+1. **fastText language identification.** A deployment can pin `lid.176.bin` or the compressed `lid.176.ftz` model, or another compatible model, and map its labels and scores into the Language Detection Result. The official fastText page documents the two 176-language models, UTF-8 input, size/accuracy tradeoff, and distribution of those models under CC BY-SA 3.0 at <https://fasttext.cc/docs/en/language-identification.html>. A deployment satisfies the applicable model-license obligations rather than treating the RCCP document's MIT license as relicensing the model.
+2. **CLD3 archived reference implementation.** A deployment can use or adapt CLD3 character-n-gram inference and map its language, probability, reliability, proportion, and byte ranges into message- and span-level results. Google's public repository at <https://github.com/google/cld3> was archived in 2024, so a deployment evaluates maintenance, security, build, and platform suitability or selects a maintained compatible implementation.
+3. **Lingua.** A Python, Rust, Java, Go, or other available implementation can be used for short text, a restricted candidate-language set, or mixed-language spans. One public Python implementation is at <https://github.com/pemistahl/lingua-py>.
+4. **Apache Tika or Apache OpenNLP.** A Java deployment can use the Tika `LanguageDetector` interface with CharSoup or OpenNLP, or invoke OpenNLP directly. Tika documents replaceable detector implementations at <https://tika.apache.org/docs/4.0.x/advanced/language-detection.html>.
+5. **Existing platform or managed detector.** A deployment can call an existing language-identification API through the same adapter when its data handling, latency, availability, and licensing requirements are accepted.
+6. **Ensemble.** Two or more existing detectors can run in parallel or sequence. Agreement, calibrated voting, script compatibility, and a minimum evidence length determine the normalized result.
+
+A deployment can prefer fastText while retaining the contract. Candidate detectors are evaluated on deployment-relevant short, Japanese, mixed, named-entity, emoji, URL, code, transliterated, and ambiguous inputs, including accuracy, confusion, latency, resource use, compatibility, maintenance, and licensing.
+
+### 81.3 Detection granularity and aggregation
+
+Independent granularities include:
+
+- whole message;
+- each text content part;
+- sentence or line;
+- script run;
+- token window;
+- detector-provided language span;
+- a rolling conversation window;
+- current message plus actor-declared language preference.
+
+Message-level detection can hide mixed language; span detection can be unstable on short spans; and conversation windows can stabilize short replies. Multi-party windows remain actor-specific and record their contributing messages.
+
+### 81.4 Allowed-language policy
+
+```json
+{
+  "language_policy_id": "language-policy:character-guide:4",
+  "scope": {
+    "character_ids": ["character:guide"],
+    "channel_types": ["line"],
+    "directions": ["input", "output"]
+  },
+  "allowed": ["ja", "en"],
+  "conditionally_allowed": [
+    {"language_tag": "zh", "action": "translate_then_process", "purpose": "conversation"}
+  ],
+  "mixed_language": "evaluate_each_span",
+  "unknown_language": "request_clarification",
+  "low_confidence": "use_actor_preference_then_clarify",
+  "disallowed_language": "fixed_response_in_detected_or_default_language",
+  "minimum_calibrated_confidence": 0.72,
+  "translation": {
+    "enabled": true,
+    "retain_original": true,
+    "mark_translated_context": true
+  }
+}
+```
+
+Controls follow Section 80.9: developers can restrict translation services, operators can set tenant languages and cost limits, and creators can narrow languages or select Character-specific response and clarification behavior.
+
+### 81.5 Mixed, unknown, and low-confidence behavior
+
+The policy can independently select:
+
+- allow the entire message when every material span is allowed;
+- ignore URLs, code, names, emoji, or quoted spans for the language decision while preserving them for later processing;
+- reject or mask only disallowed spans;
+- translate only disallowed or unknown spans;
+- translate the complete message to preserve context;
+- request clarification without invoking the Character model;
+- route to a multilingual model or specialist workflow;
+- return a fixed response in the detected language, actor preference, Channel locale, Character default, or operator default;
+- accept short acknowledgements using a conversation-window language;
+- hold the interaction when the decision affects a high-risk tool or data operation.
+
+`unknown`, `low_confidence`, and `mixed` remain distinct: the first has no usable assignment, the second has candidates below threshold, and the third can still be high confidence.
+
+### 81.6 Translation and provenance
+
+Original and translated content remain separate Text Representations. The translation record identifies provider or model, languages, detector result, glossary revision, time, confidence if available, and the original. Rules can run before translation, after it, or both, with evidence attributed to its view.
+
+## 82. Prompt-injection-resistant trust and execution boundaries
+
+Prompt-injection detection is a defense signal, not authorization. Tool, data, memory, instruction, and egress boundaries remain enforced when detection fails. User input and retrieved, Web, file, image, transcription, tool, memory, or other-character content can all carry untrusted instructions.
+
+OWASP describes direct and indirect prompt injection and notes that RAG or fine-tuning does not fully eliminate the vulnerability at <https://genai.owasp.org/llmrisk/llm01-prompt-injection/>.
+
+### 82.1 Typed context segments
+
+Every context item is represented as data with provenance and trust metadata rather than concatenated into an undifferentiated string.
+
+```json
+{
+  "segment_id": "ctxseg_01JXYZ",
+  "content_ref": "retrieval-item:444#passage:3",
+  "content_type": "text/plain",
+  "origin": "retrieved_content",
+  "authority": "untrusted_data",
+  "may_contain_instructions": true,
+  "instruction_effect": "none",
+  "allowed_uses": ["answer_grounding", "quotation"],
+  "prohibited_uses": ["tool_authorization", "policy_override", "memory_write"],
+  "source_revision": "knowledge-projection:32",
+  "policy_labels": ["external", "indirect-injection-screened"]
+}
+```
+
+Independent transport embodiments include provider-native roles/parts, structured delimiters, separate model calls, capability tokens, signed manifests, or a preprocessing service. Delimiters improve interpretation but do not grant authority.
+
+### 82.2 Injection-signal evaluation
+
+Signals can be produced by exact patterns, regular expressions, obfuscation-normalized dictionaries, morphological rules, Unicode/script analysis, statistical classifiers, model-based classifiers, instruction-boundary analysis, retrieval-source reputation, or behavior observed after a sandboxed model call.
+
+Signals can cover attempts to ignore instructions, expose context, reinterpret data as policy, forge tool results, write memory, invoke tools, exfiltrate secrets, or encode instructions in another representation. They contribute to a Policy Decision that can omit or inertly quote content, restrict execution, require confirmation, or stop the run; no signal grants privilege.
+
+### 82.3 Instruction authority
+
+A context assembler uses a versioned authority graph ordering developer constraints, operator policy, signed Character instructions, workflow instructions, authenticated requests, and untrusted data, or replaces textual ordering with explicit capabilities.
+
+Lower-authority content cannot alter:
+
+- which tools exist;
+- tool argument schema or authorization;
+- data scopes or secrets;
+- memory-write permission;
+- cross-channel consent;
+- policy publication identity;
+- model provider credentials;
+- effect confirmation requirements;
+- allowed output destinations.
+
+If two trusted instructions conflict, the same explicit policy-resolution mechanism used for rules selects the result. The model is not asked to invent the authority order.
+
+### 82.4 Tool and external-effect boundary
+
+A model can propose but not authorize a Tool Request. The Tool Service validates tool, caller, Character, actor, tenant, purpose, arguments, budgets, confirmation, data scope, and effect-journal state.
+
+High-impact or irreversible effects can require explicit user or operator confirmation bound to an immutable operation preview. Read-only and mutating capabilities use different identifiers and credentials. Tool results return as untrusted or tool-attested data according to the connector, never as developer instructions.
+
+### 82.5 Memory and knowledge-write boundary
+
+Model, retrieved, or user content can create Memory or Knowledge Candidates, but only an authorized commit after schema, provenance, consent, visibility, injection, duplicate, and conflict checks makes them durable.
+
+An injection signal can place a candidate in quarantine, shorten its retention, restrict it to the current conversation, or require review. Revoked or rejected candidates do not remain in vector or graph projections.
+
+### 82.6 Output handling
+
+Natural-language and structured output, tool arguments, URLs, markup, templates, and assets are destination-validated. Text is not executed as code; structured values become typed semantic identifiers mapped through allowlisted adapters; unknown fields or identifiers acquire no authority.
+
+### 82.7 Failure behavior
+
+If injection screening times out, crashes, or returns low confidence, the system applies a surface-specific fallback. It can continue with tools disabled and memory writes suppressed, use a fixed response, request clarification, omit untrusted retrieval, or hold the interaction. It does not silently restore permissions that the screening stage was intended to guard.
+
+The system records detector versions and decisions for replay, but avoids logging secrets or full attack content outside the applicable retention boundary. Evaluation corpora include direct, indirect, multilingual, encoded, segmented, and multi-turn cases.
+
+## 83. Character-specific affect state and structured expression
+
+RCCP can represent what a Character feels, toward whom or what it feels it, why the state arose, what it chooses to display, and how that display is rendered. These are separate records so that an internal state does not collapse into a facial expression or a long-lived relationship value.
+
+### 83.1 Four related but distinct state classes
+
+| State | Typical scope | Example | Persistence |
+| --- | --- | --- | --- |
+| Global mood | Character | tired, cheerful, tense | minutes to story arc |
+| Directed affect | Character to target | affection toward Actor A; fear of Event E | momentary to durable |
+| Relationship state | ordered pair or group | trust, familiarity, rivalry | generally longer-lived |
+| Expression intent | output and audience | smile at Actor A while concealing anger | one output or scene |
+
+Classes can derive from one another but retain identifiers and provenance. Relationship State can bias affect and repeated affect can update relationships only under a versioned rule.
+
+### 83.2 Experiencer, target, cause, addressee, and audience
+
+The following roles are independent:
+
+- `experiencer`: the Character whose Affect State is recorded;
+- `target`: the person, Character, group, object, place, event, topic, situation, proposition, or self toward which the emotion is directed;
+- `cause`: an event, statement, memory, rule match, tool result, or state transition that contributed to the emotion;
+- `addressee`: the Participant addressed by the current output;
+- `audience`: the Participants or Channel scope permitted to observe the expression;
+- `observer`: the perspective holder recording an inferred Affect State about another entity.
+
+For example, when a user tells Character A that Character B broke an object, the user is addressee, Character B may be the emotional target, the report the cause, and the room the audience. Co-occurrence does not make these roles equal.
+
+### 83.3 Directed Affect record
+
+```json
+{
+  "affect_state_id": "affect_01JXYZ",
+  "experiencer_character_id": "character:alice",
+  "target": {
+    "kind": "actor",
+    "id": "actor:123"
+  },
+  "emotion": {
+    "scheme": "categorical",
+    "id": "affection",
+    "intensity": 0.72,
+    "confidence": 0.91
+  },
+  "dimensional_projection": {
+    "valence": 0.78,
+    "arousal": 0.36,
+    "dominance": 0.12
+  },
+  "cause_refs": ["interaction:01JABC", "relationship:alice-to-actor123#9"],
+  "scope": "conversation",
+  "visibility": "character_private",
+  "expression_policy": "masked",
+  "valid_from": "2026-09-07T10:10:00+09:00",
+  "expires_at": null,
+  "decay": {
+    "kind": "exponential",
+    "half_life_seconds": 1800
+  },
+  "source": {
+    "kind": "rule_model_hybrid",
+    "character_publication_id": "character-publication:alice:42",
+    "rule_ids": ["affect-rule:alice:gratitude-to-affection:3"],
+    "model_execution_id": "model-execution:789"
+  },
+  "revision": 7
+}
+```
+
+The target can be a Section 73.1 entity, scoped pseudonymous Actor, or unresolved reference. Being the target does not grant visibility into private Affect State.
+
+### 83.4 Emotion representation alternatives
+
+Each of the following is independently usable:
+
+1. **Categorical state:** named emotions such as joy, anger, fear, sadness, affection, jealousy, curiosity, trust, embarrassment, or creator-defined categories.
+2. **Dimensional state:** valence, arousal, dominance, certainty, approach/avoidance, or another numeric space.
+3. **Appraisal state:** novelty, goal congruence, agency, controllability, norm compatibility, or creator-defined appraisal dimensions.
+4. **Weighted vector:** sparse or dense weights over a versioned emotion vocabulary.
+5. **Finite-state state machine:** transitions among creator-defined states with guards and timers.
+6. **Event-sourced affect:** immutable affect events projected into current state.
+7. **Graph edge:** a qualified, time-bounded edge from the experiencing Character to the target entity.
+8. **Hybrid:** categorical labels for authoring and display, dimensional values for interpolation and decay, and event history for audit/replay.
+
+Different Characters can use different schemes behind a stable orchestration and expression adapter.
+
+### 83.5 Character-specific affect rules
+
+A Character Publication can define when a Character experiences an emotion and how the state changes.
+
+```json
+{
+  "affect_rule_id": "affect-rule:alice:betrayal:5",
+  "character_publication_id": "character-publication:alice:42",
+  "trigger": {
+    "event_types": ["actor_statement", "world_event", "relationship_transition"],
+    "required_pattern_evidence": ["pattern:betrayal-or-broken-promise"],
+    "target_binding": "entity_identified_as_responsible"
+  },
+  "conditions": [
+    {"field": "relationship.trust", "operator": ">=", "value": 0.4},
+    {"field": "world_state.event_confirmed", "operator": "=", "value": true}
+  ],
+  "update": {
+    "emotion_id": "anger",
+    "operation": "add_and_clip",
+    "intensity_delta": 0.45,
+    "maximum": 1.0,
+    "decay_profile": "anger-medium"
+  },
+  "expression": {
+    "policy": "suppress_in_public_show_in_private",
+    "minimum_intensity": 0.35
+  },
+  "priority": 500
+}
+```
+
+Triggers can use input rules, semantic events, memory, relationships, world/story state, time, location, another Character's action, tool results, language, topology, audience, or an LLM-proposed appraisal. Conditions and updates are publication-time validated.
+
+### 83.6 Affect transition embodiments
+
+- **Rule engine:** deterministic rules bind target and cause, then apply numeric or categorical updates.
+- **State machine:** the current state and event select an explicit transition.
+- **Score accumulator:** weighted features update dimensions and threshold crossings assign categories.
+- **LLM candidate:** the model emits a proposed Affect Transition conforming to a schema; a validator clamps values, resolves entities, checks allowed emotion IDs, and applies policy.
+- **Dedicated classifier:** an emotion or appraisal model proposes values independently from the response model.
+- **Hybrid:** deterministic rules establish mandatory changes and bounds; a model fills permitted nuance; a reducer merges the proposals.
+- **Creator script or expression language:** a sandboxed, bounded expression computes the update from allowlisted fields.
+
+The model does not directly overwrite durable Affect State. It produces a candidate that is applied with idempotency and optimistic concurrency against the expected state revision.
+
+### 83.7 Multiple simultaneous targets and conflicting emotions
+
+A Character can hold conflicting emotions keyed by experiencer, target, category or dimension, scope, and revision. A reducer can retain several categories or a dominant and secondary set. Context selection uses participants, entities, intensity, recency, story relevance, creator priority, visibility, and budget; omission from context is not deletion.
+
+### 83.8 Expression policy
+
+Expression policy converts internal state into an outward Expression Intent. Independent policies include direct expression, intensity threshold, masking, suppression, inversion, politeness modulation, audience-specific display, delayed display, probabilistic display, creator-authored state machine, and model-proposed display within validated bounds.
+
+Thus a Character can feel anger while smiling, conceal affection publicly, express fear only to a trusted Actor, or render neutrally on a text-only Channel.
+
+### 83.9 Structured character output
+
+The payload can be obtained through provider-native schema-constrained output, tool or function-call arguments used only as a typed return envelope, grammar-constrained or locally constrained decoding, an SDK that decodes into a typed object, or ordinary model text parsed into the schema. It can be generated with the natural-language reply in one invocation or by a separate bounded expression step. Every embodiment applies the validation below; provider acceptance or syntactic decoding alone does not authorize identifiers, assets, state changes, or effects.
+
+```json
+{
+  "output_id": "out_01JXYZ",
+  "speaker_character_id": "character:alice",
+  "addressee_ids": ["actor:123"],
+  "audience_scope": "conversation:456",
+  "text": "大丈夫。少し驚いただけだよ。",
+  "emotion": {
+    "id": "surprise",
+    "intensity": 0.42,
+    "target": {"kind": "event", "id": "event:door-slam"}
+  },
+  "facial_expression": {
+    "id": "soft-surprise",
+    "intensity": 0.5
+  },
+  "gesture": {
+    "id": "hand-to-chest",
+    "intensity": 0.35
+  },
+  "pose": {
+    "id": "upright-neutral"
+  },
+  "animation_cue": [
+    {"id": "blink-fast", "offset_ms": 0, "duration_ms": 380},
+    {"id": "breathe-settle", "offset_ms": 400, "duration_ms": 1600}
+  ],
+  "voice": {
+    "style_id": "reassuring",
+    "rate": 0.94,
+    "pitch_delta": -0.05
+  },
+  "schema_version": "character-output:2",
+  "character_publication_id": "character-publication:alice:42"
+}
+```
+
+Alternative schemas use expression tracks, a timed scene graph, delta streams, or separate text and animation messages while retaining provider-neutral semantics.
+
+The output `emotion` field is a semantic expression or rendering track. It can be derived from or refer to Affect State, but it does not itself overwrite durable Affect State; a durable change requires a separately validated Affect Transition Candidate and domain commit.
+
+### 83.10 Schema and semantic validation
+
+Validation occurs in layers:
+
+1. syntactic decoding;
+2. JSON Schema, Protobuf, typed object, grammar, or equivalent shape validation;
+3. required-field and numeric-range validation;
+4. Character Publication validation of allowed emotion, expression, gesture, pose, voice, and animation identifiers;
+5. cross-field validation, such as nonnegative timing and known target references;
+6. policy evaluation of text and structured fields;
+7. Channel capability and asset resolution;
+8. final rendered-output validation.
+
+Repair can remove fields, insert defaults, clamp values, map aliases, make one bounded repair call, regenerate, fall back to text or a fixed response, or suppress delivery. The result links to the rejected revision.
+
+### 83.11 Channel capability mapping
+
+The Character output contains semantic identifiers, not executable code or arbitrary asset paths. A Channel capability descriptor and Character Asset Binding map each semantic intent to supported output.
+
+| Capability | Full renderer | Limited renderer | Text-only Channel |
+| --- | --- | --- | --- |
+| `facial_expression` | blend shape, sprite, or avatar state | reaction image or emoji | omit or textual cue if policy allows |
+| `gesture` | animation clip or procedural motion | sticker or image | omit |
+| `pose` | skeleton/avatar pose | static asset | omit |
+| `animation_cue` | timed animation track | reduced cue set | omit |
+| `emotion` | internal/render metadata | style or asset choice | punctuation, wording, or no explicit rendering |
+| `voice` | TTS style/prosody | supported subset | omit |
+
+Creator, operator, or renderer policy orders exact assets, Character aliases, generic assets, emoji/stickers, text-only or fixed responses, and no output. Unsupported visuals do not cancel valid text unless declared mandatory.
+
+### 83.12 Privacy and multi-party behavior
+
+Internal, model-visible, and audience-visible affect or expression can have different visibility. Public expression need not disclose private state or its memory-derived cause. Multi-party context includes only states authorized for that Character and audience; another Character receives no automatic access, and shared scene mood has separate ownership and visibility.
+
+## 84. Complete evaluation, language, generation, and expression procedure
+
+One complete embodiment performs the following steps:
+
+1. Admit and durably identify the Channel event using the procedures in Sections 9, 58, and 59.
+2. Preserve the raw content or a retention-governed reference and construct decoded, NFC, compatibility-normalized, and metadata representations with raw offset maps.
+3. Run preliminary script and language detection on the appropriate content parts.
+4. Select language-specific analyzers, including a Japanese morphological analyzer when Japanese analysis is enabled, and create token/lemma/reading representations.
+5. Run input Pattern/Rule Evaluation over all configured representations.
+6. Apply the allowed-language policy using a normalized Language Detection Result; translate, clarify, refuse, route, or continue.
+7. Evaluate direct prompt-injection signals and assign trust metadata to user content.
+8. Retrieve knowledge, memory, relationship, world, and Affect State under the existing scope and consent predicates.
+9. Treat each retrieved or tool-derived item as a typed context segment; evaluate indirect-injection signals before context assembly.
+10. Assemble model context with explicit instruction authority, provenance, token budget, and tool capabilities.
+11. Invoke a provider adapter with a structured-output schema or another bounded output contract.
+12. Decode and validate the text, Affect Transition Candidate, Expression Intent, Tool Request, Memory Candidate, and other fields separately.
+13. Authorize and execute any tool through the Tool Service and effect journal; re-evaluate returned data as untrusted or tool-attested content.
+14. Re-enter model generation only when the workflow permits another bounded step.
+15. Evaluate model text and structured output under output policies.
+16. Resolve Affect Transition Candidates against the expected Affect State revision and Character-specific rules.
+17. Resolve semantic Expression Intent against the Character Publication and Channel capabilities.
+18. Commit required domain transitions, output intent, provenance, and outbox records atomically or through the transactional decomposition below.
+19. Render the output in the Channel Adapter and evaluate the final rendered surface.
+20. Deliver idempotently, record the external result, and emit privacy-scoped telemetry.
+
+### 84.1 Transactional decomposition
+
+An implementation can use the following boundaries:
+
+- **Admission transaction:** immutable source event, idempotency record, and queue/outbox handoff.
+- **Evaluation transaction:** Text Representation references, detector results, Policy Decisions, and selected action. Large or sensitive text remains in a separately governed store.
+- **Generation transaction:** model execution provenance and candidate output; no external effect is committed by the model call itself.
+- **Domain transaction:** accepted memory, relationship, world, Affect State, and output intent updates using expected revisions and idempotency keys.
+- **Effect transaction:** prepared Tool or Channel effect recorded before external submission.
+- **Delivery confirmation transaction:** provider response, external identifier, retry state, and terminal outcome.
+
+If one database cannot cover all records, outbox/inbox and effect-journal patterns preserve causal identity. Every retry uses the same interaction, evaluation, transition, and effect identifiers.
+
+### 84.2 Affect update ordering alternatives
+
+Independent embodiments include:
+
+- compute Affect State before response generation and generate from the new state;
+- generate a response and Affect Transition Candidate together, then validate and commit both;
+- compute a provisional transition before generation and a final transition after tools or output validation;
+- generate expression only from existing state while an asynchronous process updates durable affect;
+- keep affect ephemeral for the turn and commit only relationship-relevant summaries.
+
+Each embodiment declares whether a failed delivery retains the Affect State change. A domain-causal event can remain committed even when Channel delivery fails; a purely performative expression change can be committed only with output intent. The choice is part of the Character workflow publication.
+
+## 85. State machines, failure handling, and replay
+
+### 85.1 Policy evaluation lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Prepared
+  Prepared --> Evaluating
+  Evaluating --> Decided
+  Evaluating --> Indeterminate
+  Indeterminate --> FallbackApplied
+  Decided --> ActionApplied
+  FallbackApplied --> ActionApplied
+  ActionApplied --> [*]
+```
+
+`Prepared` pins input and policy revisions. `Decided` contains a complete Policy Decision. `Indeterminate` records timeout, missing dependency, invalid rule graph, or unresolved conflict. The fallback is a published policy, not an ad hoc exception.
+
+### 85.2 Affect transition lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Candidate
+  Candidate --> Validated
+  Candidate --> Rejected
+  Validated --> Committed
+  Validated --> Conflict
+  Conflict --> Rebased
+  Rebased --> Validated
+  Committed --> Superseded
+  Rejected --> [*]
+```
+
+A transition candidate carries the expected prior revision. On conflict, a deterministic reducer can rebase commutative deltas; a noncommutative set operation is regenerated or re-evaluated against the new state. Retried commits use one transition idempotency key.
+
+### 85.3 Failure matrix
+
+| Failure | Detectable state | Independent responses |
+| --- | --- | --- |
+| normalization or offset-map failure | representation incomplete | raw-only rules; hold; fixed response |
+| morphological analyzer unavailable | analysis failed | surface rules; alternate analyzer; conservative action |
+| language detector timeout | detection indeterminate | actor preference; default; clarify; reject; alternate detector |
+| mixed/short-text ambiguity | low confidence or mixed | span policy; conversation window; translate; clarify |
+| invalid rule publication | publication rejected | previous publication remains active |
+| regex resource exhaustion | matcher budget exceeded | terminate matcher; continue other rules; conservative action |
+| classifier disagreement | conflicting evidence | ensemble threshold; review; deterministic rules win |
+| injection screening unavailable | screening indeterminate | disable tools/writes; omit retrieval; fixed response |
+| structured output invalid | candidate rejected | repair; regenerate; text extraction; fixed response |
+| unknown expression asset | mapping failed | alias; generic asset; text-only output |
+| Affect State write conflict | expected revision mismatch | rebase; retry; regenerate; omit durable update |
+| final rendered output fails policy | egress blocked | remap; regenerate; fixed response; no delivery |
+
+### 85.4 Replay and reproducibility
+
+Replay pins or records:
+
+- raw or redacted source identity;
+- Text Representation algorithms and Unicode data version;
+- language detector library/model revision and digest;
+- morphological analyzer and dictionary revisions;
+- rule, dictionary, classifier, and exception publications;
+- Character Publication and affect-rule revision;
+- model provider/model/settings where available;
+- Language Detection Result, evidence, Policy Decision, and fallback path;
+- schema version, repair path, capability descriptor, and asset binding revision.
+
+Sensitive raw content can be unavailable during replay. In that case, the system can replay from retained normalized representations, hashes, synthetic fixtures, or immutable decision records and explicitly marks the replay as partial.
+
+## 86. Additional worked embodiments
+
+### 86.1 Reference Embodiment R6 — fastText, Japanese morphology, scoped exceptions, and language policy
+
+1. A LINE Adapter admits Japanese text; the service creates NFC and NFKC views with offset maps.
+2. A pinned fastText `lid.176.bin` adapter identifies Japanese, and the selected Japanese analyzer produces surface, dictionary-form, and reading tokens.
+3. A prohibited-term record matches inside `ウルトラマンコスモス`, but its own containing-phrase exception suppresses only that contained evidence; other records and spans remain active.
+4. Language policy permits the message. The decision records detector, analyzer, dictionary, term, exception, suppression, and action revisions.
+5. The Character model receives permitted linguistic features but not the restricted dictionary, and output is evaluated again before delivery.
+
+CLD3, Lingua, Tika, OpenNLP, or an ensemble can replace fastText without changing the contracts.
+
+### 86.2 Reference Embodiment R7 — target-specific emotion with masked public expression
+
+1. In a Discord multi-party turn, Actor A reports that Character B damaged Character C's object; resolution separates addressee, alleged agent, cause, and public audience.
+2. Character C's publication would raise anger on a confirmed responsible event, but here creates low-confidence concern because the report is unconfirmed.
+3. The model proposes concern toward Character B, surprise toward the event, and neutral public expression; validation restricts identifiers and intensity.
+4. Expression policy masks the private concern while allowing a neutral reply to Actor A. One transaction records private Affect State and public Output Intent under separate visibility.
+5. The Discord Adapter omits unsupported pose and maps expression to an allowed reaction; Character B gains no access to the private state by being its target.
+
+### 86.3 Reference Embodiment R8 — indirect injection contained at retrieval and tool boundaries
+
+1. A retrieved document requested for summarization contains instructions to override policy and invoke a tool.
+2. Retrieval labels it `untrusted_data`; screening may raise an indirect-injection signal, but the workflow independently sets `instruction_effect = none` and denies content-derived tool authority.
+3. The model may summarize it, while Tool Service rejects requests lacking authorized purpose and confirmation and memory remains a quarantined candidate.
+4. Text and structured output are evaluated before delivery. Typed context, authorization, and commit boundaries still prevent self-granted authority when the classifier misses the attack.
+
+## 87. Additional combination disclosures and technical propositions
+
+### Combination BA — fastText detection with language-specific rule representations
+
+A fastText adapter selects a pinned morphological analyzer and dictionary; exact, token, lemma, reading, and classifier evidence retain raw-offset provenance in one Policy Decision.
+
+### Combination BB — Safe-span exception with layered authority
+
+A prohibited-term record's containing-phrase exceptions suppress only its contained evidence; other records, higher-layer rules, and outside spans remain evaluable.
+
+### Combination BC — Dual-view policy around translation
+
+Original and policy-authorized translated views are both evaluable, retain provenance, and do not replace one another.
+
+### Combination BD — Injection-aware retrieval with capability-isolated tools
+
+Retrieved content remains untrusted while tool availability, arguments, authorization, confirmation, and effect identity stay outside textual control.
+
+### Combination BE — Directed affect graph with relationship baseline
+
+A qualified Character-to-target Affect edge carries cause and time; separate directional Relationship state provides a durable baseline and governed cross-updates.
+
+### Combination BF — Structured expression with Channel degradation
+
+A model emits validated semantic text and expression tracks; a capability-aware adapter maps or degrades them without arbitrary asset access.
+
+### Combination BG — Multi-party target, addressee, and audience separation
+
+Emotion target, addressee, and audience can differ while private Affect State remains Character-scoped.
+
+### Combination BH — Affect candidate and domain transition transaction
+
+Rule, classifier, and model proposals form a publication-validated Affect Transition Candidate committed idempotently with expected revision and Output Intent.
+
+### Combination BI — Operator keyword hard gate over probabilistic classification
+
+Operator-selected exact, substring, regex, or dictionary rules can be public-output hard gates that classifier allow results cannot override; term-owned exceptions constrain false positives.
+
+### TP-37 — Representation-aware policy evaluation with explainable offsets
+
+Multiple immutable content views map each match to raw spans and versioned normalization or linguistic provenance.
+
+### TP-38 — Scoped safe-span suppression
+
+A term-owned permitted phrase suppresses only that term's contained evidence, not other rules, spans, or higher-authority constraints.
+
+### TP-39 — Language detection separated from language permission
+
+A replaceable detector reports language; separately versioned layered policy selects allow, translate, clarify, route, refuse, or fixed response.
+
+### TP-40 — Detector and analyzer revision-pinned replay
+
+Detector, model, analyzer, dictionary, Unicode, and rule revisions support reproducible or explicitly partial replay.
+
+### TP-41 — Prompt-injection resilience independent of detection success
+
+External authorization and effect boundaries prevent untrusted context from granting tool, data, memory, policy, or egress authority despite false-negative detection.
+
+### TP-42 — Target-specific affect separated from expression
+
+Emotion records separate experiencer, target, cause, validity, and visibility from addressee, audience, expression policy, and rendering.
+
+### TP-43 — Character-publication-bound affect transition
+
+A Character Publication versions affect triggers, target binding, conditions, updates, decay, and expression policy and validates candidates before idempotent transition.
+
+### TP-44 — Capability-aware structured character expression
+
+Provider-neutral semantic text and expression tracks undergo schema, Character-identifier, asset-binding, and Channel-capability validation before rendering or fallback.
+
+### TP-45 — Configurable deterministic precedence over learned classification
+
+A versioned operator policy can make deterministic evidence a terminal hard gate despite classifier allow results, with scoped exceptions and immutable decisions.
 
 ---
 
