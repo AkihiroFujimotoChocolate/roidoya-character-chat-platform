@@ -1,7 +1,7 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
-**Status:** Fourth Public Edition\
-**Edition:** 2026-09-08\
+**Status:** Fifth Public Edition\
+**Edition:** 2026-09-08.2\
 **Publication date:** 2026-09-08 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
@@ -11,9 +11,9 @@
 
 ## Abstract
 
-Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, and capability-aware structured expression. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, and model APIs.
+Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, and authorized creator/operator intervention without depending on unconstrained model autonomy. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, and model APIs.
 
-**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; live-chat character system; derived-state migration; execution provenance
+**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; authoritative world state; observer-scoped projection; character belief; action intent; action resolution; world event; creator intervention; operator intervention; bounded autonomy; live-chat character system; derived-state migration; execution provenance
 
 > This document describes implementable technical architectures and embodiments for building and operating character-chat services with RCCP. It includes both implemented and not-yet-implemented arrangements. A described embodiment does not imply that it is currently implemented, selected as the only supported architecture, or claimed to be novel.
 
@@ -37,6 +37,8 @@ This disclosure focuses on technical arrangements for:
 - separating untrusted content from instructions and enforcing authorization, tool, memory-write, and output boundaries even when prompt-injection detection is uncertain or fails;
 - maintaining character-specific global mood, target-directed emotion, relationship state, expression intent, and channel-rendered behavior as distinct but related records;
 - producing validated structured character output containing text, emotion, facial expression, gesture, pose, animation cues, or other semantic intents and transforming it according to Channel capabilities;
+- separating authoritative world events, observer-scoped projections, and Character subjective state while connecting them through a validated action feedback loop;
+- allowing Creators and authorized Operators to introduce scheduled events, correct drift, direct Character development, change perception, or pause autonomy through versioned and auditable interventions;
 - preserving stable contracts while allowing implementations and infrastructure to change;
 - maintaining correctness in horizontally scaled or multi-instance deployments;
 - controlling duplicate processing, concurrency, backlog, rate limits, and external-provider failures;
@@ -69,6 +71,10 @@ Representative problems include:
 15. **Prompt injection cannot be reduced to a prohibited-term list.** Direct user instructions and indirect instructions embedded in retrieved documents, tool results, files, images, or prior memory can attempt to cross trust boundaries even when no known attack phrase matches.
 16. **A character's felt emotion is not the same as its displayed expression.** The character can feel one emotion toward one entity, discuss another entity, address a third participant, and intentionally display a different expression to an audience.
 17. **Structured expressive output requires semantic validation and capability negotiation.** A model-generated facial expression, pose, gesture, or animation identifier cannot be passed directly to every Channel or renderer, and malformed or unsupported output requires deterministic fallback.
+18. **World fact, observable result, and Character belief are not interchangeable.** One event can have hidden causes, limited witnesses, delayed reports, conflicting interpretations, and Character-specific consequences.
+19. **Generated narration must not become authoritative state by implication.** A User, Model, Tool, or Character can propose an action or assert a fact without having permission to commit a World Event, memory, relationship, or belief transition.
+20. **Autonomous behavior cannot be the only continuity-control mechanism.** A production experience needs explicit ways for Creators and Operators to schedule story events, correct drift, direct growth or perception change, pause effects, and activate safe revisions.
+21. **Human intervention still requires technical boundaries.** A privileged correction or event can conflict with concurrent state, exceed its delegated scope, duplicate a scheduled occurrence, hide historical causes, or partially update multiple Characters unless authority, revision, idempotency, transaction, and provenance are explicit.
 
 The disclosed architecture addresses these problems through explicit responsibility boundaries, stable contracts, replaceable implementations, orchestration, shared reliability mechanisms, and concrete failure-handling rules.
 
@@ -6484,6 +6490,493 @@ Provider-neutral semantic text and expression tracks undergo schema, Character-i
 ### TP-45 — Configurable deterministic precedence over learned classification
 
 A versioned operator policy can make deterministic evidence a terminal hard gate despite classifier allow results, with scoped exceptions and immutable decisions.
+
+## 88. Cyclic authoritative-world, observation, subjective-state, and action architecture
+
+An RCCP experience can maintain a persistent world in which multiple Characters observe different parts of one authoritative state, form different and possibly incorrect beliefs, act from those beliefs, and affect the world only through a validated resolution boundary. This is a cyclic execution model:
+
+`Authoritative World → Observer-Scoped Projection → Character Subjective State → Action Intent → Action Resolution → Authoritative World`.
+
+The layers describe authority and perspective, not increasing data quality. A Character belief can be useful, sincerely held, false, incomplete, private, or outdated. It is therefore not a higher-quality replacement for an authoritative fact. Likewise, a generated action or narration is a proposal until a resolver commits a result.
+
+### 88.1 Shared-setting and living-world profiles
+
+Independent embodiments include:
+
+- **Shared-setting profile:** multiple Characters use the same World Publication, entities, history, vocabulary, and authoritative facts. Conversations need not continuously mutate shared World State. A deployment can omit a world clock, autonomous triggers, and a continuous Action Resolution loop.
+- **Living-world profile:** Character, Actor, Tool, Creator, Operator, or world-process actions and elapsed or scheduled time can change World State. Committed results become observable by other participants according to their scope.
+- **Hybrid profile:** selected scenes or entities use living-world behavior while the rest remain publication-backed reference data.
+- **Migrating profile:** an experience starts with a shared setting and later activates living-world processing without changing Channel contracts or Character identifiers.
+
+The profile is selectable per service, world, experience, scene, or Character Publication. Direct Chat does not require the living-world profile.
+
+### 88.2 Relationship to known architectures
+
+Medallion Architecture commonly organizes lakehouse data as Bronze raw data, Silver validated data, and Gold enriched or business-oriented data, with progressive quality improvement. One description is <https://learn.microsoft.com/en-us/azure/databricks/lakehouse/medallion>. The present cyclic model does not use Bronze, Silver, or Gold as public layer names because its layers distinguish authoritative reality, observable projection, and subjective belief rather than raw, validated, and enriched quality.
+
+Generative-agent work has combined observation, memory, reflection, and planning, while BDI architectures distinguish beliefs, desires or goals, and intentions or plans. For examples, see Park et al., *Generative Agents: Interactive Simulacra of Human Behavior*, <https://arxiv.org/abs/2304.03442>, and Rao and Georgeff, *BDI Agents: From Theory to Practice*, <https://aaai.org/papers/icmas95-042-bdi-agents-from-theory-to-practice/>. The embodiments below do not claim those elements as RCCP inventions. They specify how a production character-chat platform can separate observer scope, commit authority, creator/operator intervention, transactions, failure handling, and replay while using or replacing such agent techniques.
+
+An authoritative event log can use Event Sourcing, while another embodiment uses mutable state, snapshots, qualified knowledge statements, or a hybrid. Event Sourcing and its tradeoffs are described at <https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing>. Event Sourcing is not mandatory for the cyclic model.
+
+### 88.3 Logical layers and records
+
+The **Authoritative World Layer** owns World Publications, World Rules, committed World Events, current World State, causal links, and facts that can be hidden from all Characters. Static publication, append-only events, and current-state projections can have separate revision and retention lifecycles.
+
+The **Observer-Scoped Projection Layer** derives what a specified observer, audience, organization, location, sensor, capability, or information channel could receive. It can represent direct observation, delayed news, rumor, official announcement, translation, censorship, redaction, or a permitted summary. There is no requirement for one world-wide shared projection.
+
+The **Character Subjective State Layer** owns Character observations, beliefs, memories, affect, Character-scoped or directional relationship views, goals, plans, suspicions, expectations, and source/confidence qualifiers. A relationship fact can instead be world-authoritative, shared, Actor-owned, or separately scoped; placing a Character's view in the subjective layer does not make every relationship record subjective. A belief is not overwritten merely because another Character or a later projection disagrees.
+
+The **Action Resolution Boundary** accepts typed intents and proposals. It applies authority, world rules, preconditions, expected revisions, consent, visibility, policy, ordering, and idempotency before it commits an Action Result or World Event.
+
+### 88.4 Scope of the technical effect
+
+The cyclic boundary prevents or reduces a specific class of failure: untrusted or unverified input and generated content becoming authoritative World, shared story, or durable Character state without an authorized and attributable commit. It also permits several Characters to act consistently in one world while retaining different observations, secrets, mistakes, and beliefs.
+
+This boundary alone does not guarantee appropriate generated text, detect every prompt injection, protect application credentials or media assets, prevent impersonation or externally created false media, or establish rights to third-party content. Sections 80 and 82, generation-time constraints, output validation, application security, provenance, rights management, and operational response remain separate controls. Preventing a state commit does not by itself prevent an unsuitable one-turn output from being displayed.
+
+### Figure 19 — Cyclic world and Character feedback
+
+```mermaid
+flowchart TD
+  W["Authoritative World"] --> P["Observer-Scoped Projection"]
+  P --> S["Character Subjective State"]
+  S --> I["Action Intent"]
+  I --> R["Action Resolution"]
+  R --> W
+```
+
+## 89. World, projection, subjective-state, and action contracts
+
+### 89.1 World Event
+
+One implementable record is:
+
+```json
+{
+  "event_id": "world-event:01K...",
+  "tenant_id": "tenant:example",
+  "service_id": "service:example",
+  "world_id": "world:harbor-city",
+  "scene_id": "scene:winter-plaza",
+  "event_type": "seasonal_market_opened",
+  "causal_parent_ids": ["intervention:christmas-2026"],
+  "initiator": {"kind": "creator", "id": "creator:42"},
+  "occurred_at": "2026-12-01T00:00:00+09:00",
+  "committed_at": "2026-12-01T00:00:01+09:00",
+  "world_revision_before": 410,
+  "world_revision_after": 411,
+  "truth_mode": "world_authoritative",
+  "visibility_rule_id": "visibility:public-plaza",
+  "policy_revision_ids": ["world-policy:19"],
+  "idempotency_key": "seasonal-market:2026",
+  "provenance_refs": ["world-publication:harbor-city:28"],
+  "schema_version": "world-event:1"
+}
+```
+
+The event states that an occurrence was committed. A `SpeechEvent` states that a participant spoke to an audience; it does not make every proposition in the speech an authoritative fact.
+
+### 89.2 Observable Projection
+
+```json
+{
+  "projection_id": "observation:01K...",
+  "tenant_id": "tenant:example",
+  "service_id": "service:example",
+  "world_id": "world:harbor-city",
+  "source_event_ids": ["world-event:01K..."],
+  "observer_scope": {
+    "kind": "location_and_audience",
+    "location_id": "location:winter-plaza",
+    "audience_id": "audience:public"
+  },
+  "representation": {
+    "type": "world_observation",
+    "content_ref": "content:market-opened-public"
+  },
+  "available_from": "2026-12-01T00:00:00+09:00",
+  "expires_at": null,
+  "visibility": "public",
+  "source_world_revision": 411,
+  "projection_revision": 3,
+  "status": "available"
+}
+```
+
+Projection generation can be deterministic, creator-authored, rule-based, model-assisted, or hybrid. Model-assisted output remains a candidate until schema and policy validation. The source event, observer predicate, transformation revision, and delivery status remain attributable.
+
+### 89.3 Character Subjective Transition
+
+```json
+{
+  "transition_id": "subjective-transition:01K...",
+  "tenant_id": "tenant:example",
+  "service_id": "service:example",
+  "world_id": "world:harbor-city",
+  "character_id": "character:alice",
+  "source_refs": ["observation:01K..."],
+  "expected_subjective_revision": 87,
+  "changes": [
+    {
+      "target": "belief:market-is-open",
+      "operation": "assert",
+      "truth_mode": "character_belief",
+      "confidence": 0.91
+    }
+  ],
+  "character_publication_id": "character-publication:alice:42",
+  "policy_revision_ids": ["memory-policy:8"],
+  "status": "candidate"
+}
+```
+
+The validator can accept, narrow, defer, reject, or supersede individual changes. Past decisions retain the subjective revision from which they were made even if the Character later learns that a belief was wrong.
+
+### 89.4 Action Intent and Action Resolution
+
+An `ActionIntent` identifies the initiator, requested action, targets, world/scene scope, referenced subjective revision, expected world/entity revisions, proposed effects, authority basis, and idempotency key. It has no commit authority by itself.
+
+An `ActionResolution` records each tested world rule, precondition, permission, consent condition, policy, conflict, and selected result. Independent resolution embodiments include serial execution, optimistic concurrency with re-evaluation, deterministic arbitration, priority classes, reservation, saga, and event-sourced command handling.
+
+Results include `succeeded`, `partially_succeeded`, `failed`, `rejected`, `conflicted`, `deferred`, and `compensated`. Only a resolved result can create an authoritative World Event or World State mutation.
+
+## 90. Observation and subjective-state processing
+
+### 90.1 Projection selection
+
+Projection predicates can include world and scene, location and distance, time, organization membership, relationship, Character capability, sensory range, Channel, subscription, explicit audience, secrecy, classification, consent, and purpose. The same event can produce multiple projections with different content, delay, confidence, and visibility.
+
+An event's hidden cause and its visible effects are separate records. A Character can observe a locked door without learning who locked it. A later news report can create a different projection. A rumor can be stored as a report with a source and audience without changing the authoritative cause.
+
+### 90.2 Delivery and consistency
+
+Projection Delivery records `pending`, `delivered`, `failed`, `expired`, `superseded`, or `revoked`. Consumers use event and projection identifiers to avoid duplicate subjective updates. A failure after World Event commit does not roll the world back merely because one Character has not observed the event.
+
+Retry, dead-letter handling, backfill, and reconciliation compare the source World revision, projection revision, and last applied Character subjective revision. A newly generated corrected projection supersedes an earlier projection without deleting the evidence that the earlier information affected a past decision.
+
+### 90.3 Reflection, forgetting, and private change
+
+Character reflection, memory consolidation, forgetting, affect decay, and goal revision can change subjective state without changing Authoritative World. These operations still produce typed transition candidates with Character Publication, policy, source, expected revision, and provenance.
+
+The implementation can use deterministic rules, creator-authored scripts, a model, or a combination. Model-generated reflection does not bypass memory-write validation, and a timeout can leave the previous subjective revision active.
+
+## 91. Authorized creator and operator intervention
+
+RCCP does not require a production experience to entrust story continuity, Character development, or world operation to autonomous model behavior. Content Creators and authorized System Operators can introduce, schedule, correct, pause, or supersede world and Character changes through versioned intervention contracts.
+
+### 91.1 Intervention classes
+
+Independent intervention classes include:
+
+- **World incident:** introduce an earthquake, discovery, visitor, accident, political change, quest, or other event intended by the Creator or Operator.
+- **Seasonal or campaign event:** schedule Valentine's Day, Christmas, an anniversary, a limited campaign, a daily event, or a scene-specific occurrence.
+- **Character realignment:** correct future behavior when model output, accumulated memory, affect, goals, or relationships drift outside the Character Publication or Creator intent.
+- **Directed development:** intentionally cause growth, regression, changed values, new goals, relationship progression, or a change in how a Character interprets specified subjects.
+- **Belief or perception intervention:** provide an observation, revelation, correction, misinformation, private message, or privileged subjective transition to selected Characters.
+- **Retcon or compensation:** supersede, invalidate, reinterpret, or compensate for an earlier world or subjective transition while retaining the historical record and affected execution provenance.
+- **Autonomy-policy intervention:** change which Characters or world processes can propose actions, the tools and scopes available to them, and their time, turn, cost, effect, or risk budgets.
+- **Operational safety intervention:** pause a world, quarantine a Character, disable a tool or action class, block delivery, or activate a previously approved safe revision.
+
+Creator and Operator authority can overlap or remain separate. A deployment can allow Creators to control story content and Character intent while Operators control activation time, operational safety, quotas, rollback, and emergency suspension. An Operator creates story content only when delegated by the applicable service or Creator policy.
+
+Neither role receives Actor-private data, consent-restricted continuity, secret credentials, or unrelated tenant scope merely because it can alter fictional World or Character state. Existing consent, deletion, privacy, tenant, and Developer-controlled security boundaries remain independently enforceable.
+
+### 91.2 Intervention record
+
+```json
+{
+  "intervention_id": "intervention:christmas-2026",
+  "intervention_type": "seasonal_world_event",
+  "authority": {
+    "principal_type": "creator",
+    "principal_id": "creator:42",
+    "delegation_id": "delegation:world-harbor-city"
+  },
+  "scope": {
+    "tenant_id": "tenant:example",
+    "service_id": "service:example",
+    "world_id": "world:harbor-city",
+    "scene_ids": ["scene:winter-plaza"],
+    "character_ids": []
+  },
+  "effective_time": "2026-12-01T00:00:00+09:00",
+  "occurrence_id": "occurrence:harbor-city:christmas-2026",
+  "expected_world_revision": 410,
+  "requested_transitions": [
+    {"kind": "world_event", "event_type": "seasonal_market_opened"}
+  ],
+  "approval_policy_id": "approval:seasonal-event",
+  "world_publication_id": "world-publication:harbor-city:28",
+  "policy_revision_ids": ["world-policy:19"],
+  "idempotency_key": "world:harbor-city|occurrence:christmas-2026",
+  "status": "approved"
+}
+```
+
+The record can also carry a reason, source materials, preview result, approvers, activation window, expiry, precedence, rollback or compensation plan, and audience-visible explanation. Secret operational reasons can be stored separately with restricted access.
+
+### 91.3 Diegetic and direct intervention embodiments
+
+A **diegetic intervention** creates a world event or observer-scoped projection that allows a Character to change through an in-world cause. For example, a Character learns a fact from a letter, witnesses an incident, or develops a relationship through a scheduled scene.
+
+A **direct subjective intervention** applies a privileged Character Subjective Transition without asserting that an in-world observation occurred. It is useful for correcting drift, restoring Character intent, applying editorial direction, or migrating state. The record labels the change as creator/operator-directed rather than fabricating a false observation.
+
+A **publication intervention** activates a new Character or World Publication for future execution. It can change rules, traits, goals, allowed tools, or interpretation policy while leaving past runs bound to their original publication.
+
+An implementation can combine these forms. A direct correction can immediately stop future drift while a later in-world event explains a related Character development. The two transitions retain separate causes and provenance.
+
+### 91.4 Character drift and correction
+
+Drift can be detected by deterministic validation, evaluation against Character examples or constraints, regression tests, creator review, operator reports, user reports, or model-assisted classification. Detection evidence is not itself permission to rewrite state.
+
+Corrective alternatives include:
+
+- activate a corrected Character Publication for new interactions;
+- supersede selected beliefs, memories, affect edges, goals, or relationship transitions;
+- quarantine a disputed state and rebuild from an earlier revision plus approved events;
+- reduce autonomy or tool capability while preserving conversational availability;
+- inject a bounded directive or scene that guides future development;
+- restore a prior publication for future work without rewriting past execution provenance.
+
+Correction scope can be one Character, one relationship, one topic, one scene, one service, or all future executions. A broad reset is not inferred from a narrow problem.
+
+### 91.5 Directed growth and perception change
+
+Creator-directed development can specify a target state, allowed path, minimum or maximum rate, triggering event, affected relationships, protected traits, and evaluation criteria. The runtime can execute the development immediately, at a scheduled time, after a condition, across several interactions, or through an authored sequence of world events and observations.
+
+The target is not necessarily a fixed final utterance or a forced single personality. It can be a bounded region such as increased trust toward one Character, reduced fear after repeated safe experiences, recognition of a revealed fact, or a newly adopted goal. Each step records whether it arose from an autonomous proposal, deterministic rule, authored event, direct intervention, or manual approval.
+
+### 91.6 Preview, approval, activation, and rollback
+
+Before activation, an intervention can be schema-validated, simulated against a snapshot, previewed for affected Characters and audiences, evaluated by regression scenarios, staged to a subset, approved, and scheduled. High-impact intervention types can require multiple roles or an explicit break-glass policy.
+
+Activation uses expected revisions and idempotency. A stale intervention is re-evaluated, rejected, or explicitly rebased; it is not silently applied to a different world state. Cancellation before activation and compensation after activation are separate operations.
+
+For event-sourced world state, correction normally appends compensating or superseding events. For mutable-state embodiments, an audit record and prior revision remain available even when the current row changes. A rollback changes the active publication or adds a transition; it does not rewrite the provenance of already executed interactions.
+
+## 92. Bounded autonomy and human authority
+
+### 92.1 Autonomy is optional
+
+Autonomous Character or world-process behavior is one replaceable proposal source. An experience can use no autonomous world mutation, allow autonomous dialogue only, require approval for every proposed effect, permit bounded low-risk effects, or permit broader actions inside an explicit policy.
+
+RCCP correctness does not depend on a model independently preserving Character identity, recognizing every important event, choosing appropriate long-term growth, or repairing its own drift. Character Publications, creator-authored events, intervention contracts, validators, authorization, state boundaries, and operator controls remain first-class mechanisms.
+
+### 92.2 Autonomy Profile
+
+An `AutonomyProfile` can declare:
+
+- eligible Characters and world processes;
+- allowed intent and effect types;
+- prohibited targets and protected traits;
+- world, scene, relationship, topic, and audience scope;
+- tool, network, data, and memory permissions;
+- time, turn, token, cost, frequency, and risk budgets;
+- approval thresholds and human-review queues;
+- quiet hours, pause conditions, and termination rules;
+- maximum subjective or world-state delta per period;
+- fallback when a model, tool, policy evaluator, or approver is unavailable.
+
+The profile is versioned and resolved with the Character and World Publications. A Model Service cannot expand it through generated text or structured output.
+
+### 92.3 Proposal sources and commit authority
+
+Model generation, deterministic simulation, Creator editing, Operator action, User narration, Tool output, and scheduled automation can all produce typed proposals. Their authority differs. A normal Actor can be limited to speech and action proposals, while an authenticated `NarrativeAuthorityGrant` can permit selected world, scene, entity, event, or Character-transition proposals. The grant identifies its issuer, principal, scope, allowed proposal types, approval requirements, validity interval, and revision. Content cannot self-assert narrator, Creator, or Operator authority.
+
+A Creator or authorized Operator can have higher domain authority than an autonomous Character while still being subject to schema, scope, expected-revision, safety, consent, and non-overridable Developer constraints. An Intervention Resolver authenticates and validates the intervention, then routes world actions to Action Resolution, subjective changes to the Character-state validator, publication changes to publication activation, and operational controls to the operator control plane. Human authority does not require bypassing domain-specific audit or transaction boundaries.
+
+### Figure 20 — Multiple proposal sources, one commit boundary
+
+```mermaid
+flowchart TD
+  A["Character / Model"] --> R["Resolution / Validation"]
+  C["Creator Intervention"] --> R
+  O["Operator Intervention"] --> R
+  T["Clock / Tool / Actor"] --> R
+  R --> W["Authorized Domain Commit"]
+```
+
+## 93. Living-world execution responsibilities
+
+Logical responsibilities include World State ownership, Simulation Orchestration, World Clock or Scheduler, autonomous proposal triggering, Intervention Resolution, Projection Delivery, publication activation, operator control, and Character/Conversation Orchestration. They need not be separate network services.
+
+### 93.1 Complete cyclic processing procedure
+
+One complete embodiment performs the following steps:
+
+1. Resolve the active tenant, service, World, Character, workflow, intervention, policy, and Autonomy Profile revisions for the trigger.
+2. Admit an Actor request, Character proposal, Tool result, scheduled occurrence, Creator intervention, Operator intervention, or deterministic world-process trigger under a stable identifier and idempotency key.
+3. Authenticate the principal or system trigger and resolve its authority separately from the proposal content.
+4. Load the expected World, entity, scene, relationship, and relevant Character subjective revisions.
+5. For a Character action, retrieve only the observer-scoped projections, beliefs, memories, goals, affect, and relationships authorized for that Character and execution.
+6. Create a typed `ActionIntent`, `NarrativeProposal`, `SubjectiveTransition`, `PublicationActivation`, or `OperationalControlIntent`; generated text itself is not a mutation.
+7. Route the proposal through the applicable resolver or validator and evaluate world rules, preconditions, delegation, consent, safety, limits, conflicts, and expected revisions.
+8. Record a rejected, deferred, conflicted, partially accepted, or accepted resolution with the evaluated revisions and reasons.
+9. Commit accepted World Events and World State changes atomically or through an identified saga; publication, subjective-state, and operational commits use their own domain boundaries.
+10. Place committed events and projection work in an outbox or equivalent reliable handoff.
+11. Derive observer-scoped projections using the committed event, visibility rules, location, time, audience, information path, and projection revision.
+12. Deliver or make each projection available idempotently and record delay, expiry, supersession, failure, or revocation.
+13. Create Character Subjective Transition candidates from applicable projections, reflection, decay, authored direction, or migration and validate them against expected revisions and Character policy.
+14. Use the new or retained subjective revision for later dialogue, planning, or action proposals without granting those proposals commit authority.
+15. Continue the cycle only within the configured turn, time, cost, effect, and loop budgets.
+16. Persist causal links and execution provenance sufficient for authorized audit, reconciliation, and complete or explicitly partial replay.
+
+### 93.2 Time and scheduled occurrences
+
+The World Clock can use wall-clock, logical, scene-based, creator-controlled, or hybrid time. Scheduled interventions and autonomous triggers carry stable occurrence identifiers. Pause, resume, missed schedule, backfill, retry, and replay do not create the same event twice.
+
+When a scheduled event becomes due, the scheduler creates an occurrence proposal rather than directly mutating the world. Action Resolution verifies that the publication, authority, activation window, expected revision, and event preconditions still apply. A Valentine's Day event can therefore be skipped in a paused world, shifted by Creator policy, or activated once for each independently scoped world instance.
+
+## 94. Transactions, failures, correction, and replay
+
+### 94.1 Transactional decomposition
+
+- **Intent transaction:** persist the authenticated proposal, scope, authority reference, expected revisions, and idempotency key.
+- **Resolution transaction:** persist evaluated rules, permissions, conflicts, decision, and selected effects.
+- **World transaction:** append events and/or update state under an expected World revision.
+- **Projection transaction:** create observer-scoped projections and outbox records.
+- **Subjective transaction:** validate and apply Character transitions under expected subjective revisions.
+- **Delivery transaction:** record Channel or inter-service delivery attempts and results.
+
+An implementation can combine transactions in one database. When it cannot, outbox/inbox, idempotency, reconciliation, and compensating transitions retain causal identity.
+
+### 94.2 Intervention lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Draft
+  Draft --> Validated
+  Draft --> Withdrawn
+  Validated --> Approved
+  Validated --> Rejected
+  Approved --> Scheduled
+  Approved --> Resolving
+  Approved --> Cancelled
+  Scheduled --> Resolving
+  Scheduled --> Cancelled
+  Scheduled --> Expired
+  Resolving --> Applied
+  Resolving --> Conflicted
+  Resolving --> Rejected
+  Conflicted --> Rebased
+  Rebased --> Resolving
+  Applied --> Superseded
+  Applied --> Compensated
+  Rejected --> [*]
+  Superseded --> [*]
+  Compensated --> [*]
+  Withdrawn --> [*]
+  Cancelled --> [*]
+  Expired --> [*]
+```
+
+Low-risk deployments can combine validation and approval. An emergency suspension can enter `Resolving` under a break-glass grant, but authentication, scope, result recording, expiry, and later review remain required.
+
+### 94.3 Failure matrix
+
+| Failure | Detectable state | Independent responses |
+| --- | --- | --- |
+| stale World revision | resolution conflict | reload and re-evaluate; reject; explicit rebase |
+| duplicate scheduled occurrence | idempotency key exists | return prior result; suppress duplicate |
+| projection generation fails | World Event committed, projection pending | retry; alternate projection; manual repair |
+| subjective update fails | projection delivered or pending, Character revision unchanged | retry; reconcile; supersede |
+| model proposes impossible action | failed precondition | reject; in-character failure response; alternate plan |
+| intervention exceeds delegation | authority denied | reject; request approval; narrow scope |
+| drift correction conflicts with newer state | expected revision mismatch | preview new delta; rebase; quarantine |
+| partial multi-Character update | saga incomplete | compensate; retry remaining targets; mark partial |
+| missed seasonal schedule | due occurrence absent | skip; activate late; backfill without duplicate |
+| autonomous loop exceeds budget | budget exhausted | terminate; preserve committed events; notify Operator |
+
+### 94.4 Replay and evaluation
+
+Replay records or pins World and Character Publications, intervention and autonomy profiles, source events, projection logic, model/provider settings where available, policy revisions, action decisions, state revisions, and delivery results. A partial replay declares missing model output, deleted personal data, external effects, or unavailable source content.
+
+Regression evaluation can replay representative worlds with autonomy disabled, with recorded proposals, or with current proposal generation. It compares committed effects, protected Character traits, belief/observation separation, policy decisions, and audience-visible output without assuming byte-identical model text.
+
+Deletion, consent revocation, visibility changes, and retcons are separate transition types. A deployment can delete or cryptographically erase Actor-private payloads and invalidate derived projections while retaining a non-sensitive event identifier, tombstone, or digest when policy permits. A retcon can supersede the current authoritative interpretation without pretending that Characters never observed or acted on the earlier version; policy decides whether affected beliefs remain as historical memories, become disputed, are corrected by a new projection, or are rebuilt from an earlier revision. Replay records which rule was applied.
+
+## 95. Worked embodiments
+
+### 95.1 Reference Embodiment R9 — Creator-scheduled Christmas event
+
+1. A Creator publishes a Christmas event plan with world, scene, activation window, event content, observer rules, and one stable occurrence key.
+2. The Operator approves activation for the production world while a preview environment uses a different world identifier.
+3. At the effective time, the Scheduler emits an occurrence proposal. It does not directly write World State.
+4. Action Resolution verifies the active publication, authority, expected revision, and preconditions and commits one `seasonal_market_opened` World Event.
+5. Projection Delivery creates a direct observation for Characters in the plaza, a delayed news projection for absent Characters, and no projection for a secret Character.
+6. Character subjective transitions update beliefs and affect separately. Each subsequent response uses the Character's own applied revision.
+7. A retry with the same occurrence key returns the committed result and does not open the market twice.
+
+### 95.2 Reference Embodiment R10 — Character drift correction without history rewrite
+
+1. Regression evaluation and Creator review find that a Character's accumulated goal and relationship state cause repeated behavior outside the approved Character intent.
+2. The Creator publishes a corrected Character revision and a scoped realignment intervention for future interactions and the affected relationship only.
+3. Preview compares the old and proposed state. An Operator can pause autonomous effects while ordinary text responses continue under a safe publication.
+4. Activation supersedes the disputed goal, narrows autonomy, and activates the corrected Character Publication under expected revisions.
+5. Past interactions retain their original Character Publication, subjective revision, and output provenance. They are not rewritten as if the drift never occurred.
+6. A later authored scene can produce in-world Character growth, but that narrative event remains distinct from the earlier corrective intervention.
+
+### 95.3 Reference Embodiment R11 — Directed perception change
+
+1. A Creator intends Character A to learn a secret after a specified story milestone while Character B remains unaware.
+2. A milestone condition produces a private projection backed by the committed source event and scoped only to Character A.
+3. Character A's transition records the new belief, source, confidence, and validity; Character B receives no update.
+4. If the Creator instead applies a direct editorial correction, the transition is labeled `creator_directed` and does not fabricate an observation.
+5. Later actions retain the subjective revisions they used, allowing audit of decisions made before and after the revelation.
+
+## 96. Additional combinations and technical propositions
+
+### Combination BJ — Authoritative world with observer-scoped belief divergence
+
+One committed World Event produces multiple visibility- and audience-scoped projections that update separate Character belief revisions without creating one global social perception.
+
+### Combination BK — Character proposal with deterministic commit authority
+
+A model proposes an Action Intent from Character belief and goals; a separately authorized resolver enforces world rules, expected revisions, consent, and idempotency before committing an effect.
+
+### Combination BL — Scheduled creator event through the normal resolution boundary
+
+A Creator-authored seasonal event is activated by a durable schedule but remains a typed proposal until authority, publication, preconditions, revision, and occurrence identity are validated.
+
+### Combination BM — Operator pause with creator-owned story continuity
+
+An Operator immediately pauses autonomous effects or activates a safe revision while story and Character-content changes remain governed by Creator authority or explicit delegation.
+
+### Combination BN — Direct realignment separated from in-world development
+
+A privileged subjective-state correction is recorded as an editorial intervention, while later diegetic events and observations can independently produce Character development without falsifying the correction's cause.
+
+### Combination BO — Event history with compensating retcon
+
+An authoritative event remains in causal history while a later authorized event supersedes or compensates for its current effect and rebuilds affected projections under a recorded policy.
+
+### TP-46 — Cyclic authority-preserving world feedback
+
+Authoritative state produces observer-scoped projections and Character subjective states; Character actions return only as validated intents whose committed results create new authoritative events.
+
+### TP-47 — Observer-scoped projection between world fact and Character belief
+
+Observation scope, audience, transformation, delay, and provenance remain explicit between an authoritative occurrence and a Character's subjective update.
+
+### TP-48 — Generated narrative separated from authoritative mutation
+
+User, Model, Tool, or Character-generated content cannot self-promote from narration or proposal to authoritative World or durable Character state.
+
+### TP-49 — Authorized human intervention without hidden history rewrite
+
+Creator or delegated Operator intervention can schedule, correct, direct, pause, or supersede world and Character transitions while retaining authority, scope, revision, cause, and execution provenance.
+
+### TP-50 — Bounded autonomy subordinate to publication and policy
+
+Autonomous proposal generation is optional and cannot expand its action, tool, state, or audience authority beyond a versioned profile and external commit boundary.
+
+### TP-51 — Directed Character development with source distinction
+
+Character growth or perception change records whether it arose from observation, autonomous inference, deterministic rule, Creator direction, Operator action, or migration and preserves that distinction during replay.
+
+### TP-52 — Idempotent scheduled narrative occurrence
+
+A scheduled or condition-triggered story event uses one stable occurrence identity and an expected scope/revision so retry, resume, backfill, or multi-instance execution does not duplicate the authoritative event.
 
 ---
 
