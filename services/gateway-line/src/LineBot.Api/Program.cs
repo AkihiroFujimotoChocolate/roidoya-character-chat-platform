@@ -9,7 +9,7 @@ using LineBot.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
-builder.Services.AddHttpClient<HttpChatService>();
+builder.Services.AddHttpClient<HttpV01ChatService>();
 builder.Services.AddHttpClient<ILineReplyService, LineReplyService>();
 builder.Services.AddSingleton<ILocalQueueService, LocalQueueService>();
 builder.Services.AddSingleton<IUserLockService, UserLockService>();
@@ -23,7 +23,7 @@ builder.Services.AddScoped<IChatService>(serviceProvider =>
     
     return (chatMode ?? "Echo").ToLowerInvariant() switch
     {
-        "http" => serviceProvider.GetRequiredService<HttpChatService>(),
+        "http" => serviceProvider.GetRequiredService<HttpV01ChatService>(),
         "echo" => serviceProvider.GetRequiredService<EchoChatService>(),
         _ => throw new InvalidOperationException($"Unsupported Chat:Mode: {chatMode}")
     };
@@ -31,7 +31,7 @@ builder.Services.AddScoped<IChatService>(serviceProvider =>
 
 // Register individual chat services
 builder.Services.AddScoped<EchoChatService>();
-builder.Services.AddScoped<HttpChatService>();
+builder.Services.AddScoped<HttpV01ChatService>();
 builder.Services.AddHostedService<MessageWorkerService>();
 
 var app = builder.Build();

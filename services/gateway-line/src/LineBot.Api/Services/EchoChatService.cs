@@ -3,11 +3,6 @@ using LineBot.Api.Models;
 
 namespace LineBot.Api.Services;
 
-public interface IChatService
-{
-    Task<ChatResponse> GenerateReplyAsync(ChatRequest request, CancellationToken cancellationToken = default);
-}
-
 public class EchoChatService : IChatService
 {
     private readonly IConfiguration _configuration;
@@ -19,16 +14,16 @@ public class EchoChatService : IChatService
         _logger = logger;
     }
 
-    public Task<ChatResponse> GenerateReplyAsync(ChatRequest request, CancellationToken cancellationToken = default)
+    public Task<ChatServiceResult> GenerateReplyAsync(ChatServiceRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var inputText = request.Message.Text ?? string.Empty;
-            var maxCharsPerMessage = request.Limits.MaxCharsPerMessage;
+            var inputText = request.MessageText;
+            var maxCharsPerMessage = request.MaxCharsPerMessage;
 
             if (string.IsNullOrWhiteSpace(inputText))
             {
-                return Task.FromResult(new ChatResponse
+                return Task.FromResult(new ChatServiceResult
                 {
                     Status = "ok",
                     Messages = new List<string> { _configuration["Chat:Fallbacks:Default"] ?? "The service is temporarily unavailable." },
@@ -42,7 +37,7 @@ public class EchoChatService : IChatService
             _logger.LogInformation("Echo chat generated {MessageCount} messages for input length {InputLength}", 
                 messages.Count, inputText.Length);
 
-            return Task.FromResult(new ChatResponse
+            return Task.FromResult(new ChatServiceResult
             {
                 Status = "ok",
                 Messages = messages,
@@ -52,7 +47,7 @@ public class EchoChatService : IChatService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Echo chat service");
-            return Task.FromResult(new ChatResponse
+            return Task.FromResult(new ChatServiceResult
             {
                 Status = "error",
                 Messages = new List<string> { _configuration["Chat:Fallbacks:Default"] ?? "The service is temporarily unavailable." },
