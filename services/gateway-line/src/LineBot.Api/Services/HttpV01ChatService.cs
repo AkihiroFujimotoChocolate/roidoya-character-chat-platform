@@ -263,17 +263,20 @@ public class HttpV01ChatService : IChatService
 
     private string GetFallbackText(string errorType)
     {
+        var defaultFallback = GetConfiguredFallback("Chat:Fallbacks:Default") ?? "The service is temporarily unavailable.";
+
         return errorType.ToLowerInvariant() switch
         {
-            "timeout" => _configuration["Chat:Fallbacks:Timeout"] ?? 
-                        _configuration["Chat:Fallbacks:Default"] ?? 
-                        "The service is temporarily unavailable.",
-            "content_filtered" => _configuration["Chat:Fallbacks:ContentFiltered"] ?? 
-                                 _configuration["Chat:Fallbacks:Default"] ?? 
-                                 "The service is temporarily unavailable.",
-            _ => _configuration["Chat:Fallbacks:Default"] ?? 
-                "The service is temporarily unavailable."
+            "timeout" => GetConfiguredFallback("Chat:Fallbacks:Timeout") ?? defaultFallback,
+            "content_filtered" => GetConfiguredFallback("Chat:Fallbacks:ContentFiltered") ?? defaultFallback,
+            _ => defaultFallback
         };
+    }
+
+    private string? GetConfiguredFallback(string key)
+    {
+        var value = _configuration[key];
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
     private void ValidateConfiguredApiVersion()

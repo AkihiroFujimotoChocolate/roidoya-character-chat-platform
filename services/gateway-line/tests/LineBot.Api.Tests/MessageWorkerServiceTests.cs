@@ -40,7 +40,7 @@ public class MessageWorkerServiceTests
         var worker = new MessageWorkerService(services, TestSupport.Logger<MessageWorkerService>(), configuration);
 
         await worker.StartAsync(CancellationToken.None);
-        await Task.Delay(200);
+        await chat.WaitForInvocationAsync(TimeSpan.FromSeconds(2));
         await worker.StopAsync(CancellationToken.None);
 
         Assert.NotNull(chat.LastRequest);

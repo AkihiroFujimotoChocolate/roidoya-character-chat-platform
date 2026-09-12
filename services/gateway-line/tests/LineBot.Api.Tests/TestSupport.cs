@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-using System.Net;
-using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -38,17 +36,25 @@ internal sealed class StubHttpMessageHandler : HttpMessageHandler
 
 internal sealed class CapturingChatService : LineBot.Api.Services.IChatService
 {
+    private readonly TaskCompletionSource<bool> _invoked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public LineBot.Api.Models.ChatServiceRequest? LastRequest { get; private set; }
 
     public Task<LineBot.Api.Models.ChatServiceResult> GenerateReplyAsync(LineBot.Api.Models.ChatServiceRequest request, CancellationToken cancellationToken = default)
     {
         LastRequest = request;
+        _invoked.TrySetResult(true);
         return Task.FromResult(new LineBot.Api.Models.ChatServiceResult
         {
             Status = "ok",
             Messages = new List<string> { "reply" },
             FallbackUsed = false
         });
+    }
+
+    public Task WaitForInvocationAsync(TimeSpan timeout)
+    {
+        return _invoked.Task.WaitAsync(timeout);
     }
 }
 

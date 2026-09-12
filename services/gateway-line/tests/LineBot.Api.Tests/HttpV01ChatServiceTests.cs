@@ -96,6 +96,26 @@ public class HttpV01ChatServiceTests
     }
 
     [Fact]
+    public async Task GenerateReplyAsync_UsesDefaultFallbackWhenContentFilteredFallbackIsBlank()
+    {
+        var handler = new StubHttpMessageHandler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"request_id\":\"r4\",\"status\":\"content_filtered\",\"messages\":[\"provider\"],\"fallback_used\":false}", Encoding.UTF8, "application/json")
+        }));
+        var service = CreateService(handler, new Dictionary<string, string?>
+        {
+            ["Chat:Fallbacks:Default"] = "default-fallback",
+            ["Chat:Fallbacks:ContentFiltered"] = ""
+        });
+
+        var result = await service.GenerateReplyAsync(new ChatServiceRequest { MessageText = "hello", ConversationId = "c", AuthorUserId = "a" });
+
+        Assert.Equal("content_filtered", result.Status);
+        Assert.True(result.FallbackUsed);
+        Assert.Equal("default-fallback", result.Messages.Single());
+    }
+
+    [Fact]
     public async Task GenerateReplyAsync_ReturnsInvalidResponseFallbackForNullBody()
     {
         var handler = new StubHttpMessageHandler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
