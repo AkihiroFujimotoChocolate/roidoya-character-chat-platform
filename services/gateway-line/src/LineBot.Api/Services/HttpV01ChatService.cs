@@ -35,7 +35,7 @@ public class HttpV01ChatService : IChatService
             _logger.LogInformation("Sending HTTP chat request to {Url}, RequestId={RequestId}, TimeoutSeconds={TimeoutSeconds}", 
                 url, request.RequestId ?? "unknown", timeoutSeconds);
 
-            var httpResponse = await _httpClient.SendAsync(httpRequest, combinedCts.Token);
+            using var httpResponse = await _httpClient.SendAsync(httpRequest, combinedCts.Token);
             var responseContent = await httpResponse.Content.ReadAsStringAsync(combinedCts.Token);
 
             _logger.LogInformation("Received HTTP chat response, Status={StatusCode}, ContentLength={ContentLength}, RequestId={RequestId}", 
@@ -231,7 +231,10 @@ public class HttpV01ChatService : IChatService
                 {
                     foreach (var header in additionalHeaders)
                     {
-                        httpRequest.Headers.Add(header.Key, header.Value);
+                        if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
+                        {
+                            httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                        }
                     }
                 }
             }

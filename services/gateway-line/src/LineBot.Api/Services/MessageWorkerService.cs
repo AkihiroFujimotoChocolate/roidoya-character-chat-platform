@@ -10,6 +10,8 @@ public class MessageWorkerService : BackgroundService
     private readonly ILogger<MessageWorkerService> _logger;
     private readonly double _qps;
     private readonly TimeSpan _delayBetweenRequests;
+    private readonly int _chatRequestTimeoutSeconds;
+    private readonly int _chatMaxCharsPerMessage;
 
     public MessageWorkerService(IServiceProvider serviceProvider, ILogger<MessageWorkerService> logger, IConfiguration configuration)
     {
@@ -17,6 +19,8 @@ public class MessageWorkerService : BackgroundService
         _logger = logger;
         _qps = configuration.GetValue<double>("Reply:Qps", 5.0);
         _delayBetweenRequests = TimeSpan.FromMilliseconds(1000.0 / _qps);
+        _chatRequestTimeoutSeconds = configuration.GetValue<int>("Chat:RequestTimeoutSeconds", 20);
+        _chatMaxCharsPerMessage = configuration.GetValue<int>("Chat:MaxCharsPerMessage", 1000);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -90,8 +94,8 @@ public class MessageWorkerService : BackgroundService
             {
                 RequestId = Guid.NewGuid().ToString(),
                 MessageText = queueItem.MessageText,
-                TimeoutSeconds = 20,
-                MaxCharsPerMessage = 1000,
+                TimeoutSeconds = _chatRequestTimeoutSeconds,
+                MaxCharsPerMessage = _chatMaxCharsPerMessage,
                 ConversationId = queueItem.UserKey,
                 AuthorUserId = queueItem.UserKey
             };
