@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: MIT
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using LineBot.Api.Models;
 
 namespace LineBot.Api.Services;
 
-public class HttpChatService : IChatService
+public class HttpV01ChatService : IChatService
 {
+    private const string SupportedApiVersion = "0.1";
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<HttpChatService> _logger;
+    private readonly ILogger<HttpV01ChatService> _logger;
 
-    public HttpChatService(HttpClient httpClient, IConfiguration configuration, ILogger<HttpChatService> logger)
+    public HttpV01ChatService(HttpClient httpClient, IConfiguration configuration, ILogger<HttpV01ChatService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
+        ValidateConfiguredApiVersion();
     }
 
-    public async Task<ChatResponse> GenerateReplyAsync(ChatRequest request, CancellationToken cancellationToken = default)
+    public async Task<ChatServiceResult> GenerateReplyAsync(ChatServiceRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -32,7 +35,7 @@ public class HttpChatService : IChatService
             _logger.LogInformation("Sending HTTP chat request to {Url}, RequestId={RequestId}, TimeoutSeconds={TimeoutSeconds}", 
                 url, request.RequestId ?? "unknown", timeoutSeconds);
 
-            var httpResponse = await _httpClient.SendAsync(httpRequest, combinedCts.Token);
+            using var httpResponse = await _httpClient.SendAsync(httpRequest, combinedCts.Token);
             var responseContent = await httpResponse.Content.ReadAsStringAsync(combinedCts.Token);
 
             _logger.LogInformation("Received HTTP chat response, Status={StatusCode}, ContentLength={ContentLength}, RequestId={RequestId}", 
@@ -45,7 +48,7 @@ public class HttpChatService : IChatService
                 return CreateProviderErrorResponse(request.RequestId, "http_error", $"HTTP {(int)httpResponse.StatusCode}");
             }
 
-            var chatResponse = JsonSerializer.Deserialize<ChatResponse>(responseContent, new JsonSerializerOptions
+            var chatResponse = JsonSerializer.Deserialize<ChatV01WireResponse>(responseContent, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
@@ -60,14 +63,40 @@ public class HttpChatService : IChatService
             if (chatResponse.Status == "provider_error" || chatResponse.Status == "content_filtered")
             {
                 var fallbackText = GetFallbackText(chatResponse.Status);
-                chatResponse.Messages = new List<string> { fallbackText };
-                chatResponse.FallbackUsed = true;
-                
+
                 _logger.LogInformation("Chat service returned {Status}, using fallback text, RequestId={RequestId}", 
                     chatResponse.Status, request.RequestId ?? "unknown");
+
+                return new ChatServiceResult
+                {
+                    RequestId = chatResponse.RequestId,
+                    Status = chatResponse.Status,
+                    Messages = new List<string> { fallbackText },
+                    FallbackUsed = true,
+                    Error = chatResponse.Error is null
+                        ? null
+                        : new ChatError
+                        {
+                            Code = chatResponse.Error.Code,
+                            Message = chatResponse.Error.Message
+                        }
+                };
             }
 
-            return chatResponse;
+            return new ChatServiceResult
+            {
+                RequestId = chatResponse.RequestId,
+                Status = chatResponse.Status,
+                Messages = chatResponse.Messages ?? new List<string>(),
+                FallbackUsed = chatResponse.FallbackUsed,
+                Error = chatResponse.Error is null
+                    ? null
+                    : new ChatError
+                    {
+                        Code = chatResponse.Error.Code,
+                        Message = chatResponse.Error.Message
+                    }
+            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -78,7 +107,7 @@ public class HttpChatService : IChatService
         {
             _logger.LogWarning("HTTP chat request timed out, RequestId={RequestId}", request.RequestId ?? "unknown");
             var fallbackText = GetFallbackText("timeout");
-            return new ChatResponse
+            return new ChatServiceResult
             {
                 RequestId = request.RequestId,
                 Status = "provider_error",
@@ -104,8 +133,6 @@ public class HttpChatService : IChatService
         var endpointTemplate = _configuration["Chat:Http:EndpointTemplate"];
         var baseUrl = _configuration["Chat:Http:BaseUrl"];
         var appBaseUrl = _configuration["App:BaseUrl"];
-        var apiVersion = _configuration.GetValue<string>("Chat:ApiVersion", "0.1");
-
         string path;
 
         // Step 1: Determine the path to use
@@ -115,12 +142,12 @@ public class HttpChatService : IChatService
         }
         else if (!string.IsNullOrWhiteSpace(endpointTemplate))
         {
-            path = endpointTemplate.Replace("{version}", $"v{apiVersion}");
+            path = endpointTemplate.Replace("{version}", $"v{SupportedApiVersion}");
         }
         else
         {
             // Default template
-            path = $"/chat/v{apiVersion}/generate-replies";
+            path = $"/chat/v{SupportedApiVersion}/generate-replies";
         }
 
         // Step 2: Check if path is absolute URL
@@ -144,7 +171,7 @@ public class HttpChatService : IChatService
             "Cannot resolve chat endpoint URL: no BaseUrl or App:BaseUrl configured, and endpoint is not absolute");
     }
 
-    private HttpRequestMessage BuildHttpRequest(ChatRequest request, string url)
+    private HttpRequestMessage BuildHttpRequest(ChatServiceRequest request, string url)
     {
         // Optionally prepend a prefix to the author user ID
         var userIdPrefix = _configuration.GetValue<string>("Chat:AuthorUserIdPrefix", "line-");
@@ -155,17 +182,17 @@ public class HttpChatService : IChatService
             request_id = request.RequestId ?? Guid.NewGuid().ToString(),
             event_id = "", // Not used in current implementation
             origin = new { platform = "line" },
-            conversation = new { id = request.Conversation.Id },
-            author = new { user_id = userIdPrefix + request.Author.UserId },
+            conversation = new { id = request.ConversationId },
+            author = new { user_id = userIdPrefix + request.AuthorUserId },
             message = new 
             { 
-                text = request.Message.Text,
-                language = request.Message.Language
+                text = request.MessageText,
+                language = request.MessageLanguage
             },
             limits = new
             {
-                timeout_seconds = request.Limits.TimeoutSeconds,
-                max_chars_per_message = request.Limits.MaxCharsPerMessage
+                timeout_seconds = request.TimeoutSeconds,
+                max_chars_per_message = request.MaxCharsPerMessage
             }
         };
 
@@ -181,10 +208,9 @@ public class HttpChatService : IChatService
 
         // Add version header if configured
         var versionHeaderName = _configuration.GetValue<string>("Chat:Http:VersionHeaderName", "X-Chat-Api-Version");
-        var apiVersion = _configuration.GetValue<string>("Chat:ApiVersion", "0.1");
         if (!string.IsNullOrWhiteSpace(versionHeaderName))
         {
-            httpRequest.Headers.Add(versionHeaderName, apiVersion);
+            httpRequest.Headers.Add(versionHeaderName, SupportedApiVersion);
         }
 
         // Add API key if configured
@@ -205,7 +231,10 @@ public class HttpChatService : IChatService
                 {
                     foreach (var header in additionalHeaders)
                     {
-                        httpRequest.Headers.Add(header.Key, header.Value);
+                        if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
+                        {
+                            httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                        }
                     }
                 }
             }
@@ -218,10 +247,10 @@ public class HttpChatService : IChatService
         return httpRequest;
     }
 
-    private ChatResponse CreateProviderErrorResponse(string? requestId, string errorCode, string errorMessage)
+    private ChatServiceResult CreateProviderErrorResponse(string? requestId, string errorCode, string errorMessage)
     {
         var fallbackText = GetFallbackText("default");
-        return new ChatResponse
+        return new ChatServiceResult
         {
             RequestId = requestId,
             Status = "provider_error",
@@ -237,16 +266,53 @@ public class HttpChatService : IChatService
 
     private string GetFallbackText(string errorType)
     {
+        var defaultFallback = GetConfiguredFallback("Chat:Fallbacks:Default") ?? "The service is temporarily unavailable.";
+
         return errorType.ToLowerInvariant() switch
         {
-            "timeout" => _configuration["Chat:Fallbacks:Timeout"] ?? 
-                        _configuration["Chat:Fallbacks:Default"] ?? 
-                        "The service is temporarily unavailable.",
-            "content_filtered" => _configuration["Chat:Fallbacks:ContentFiltered"] ?? 
-                                 _configuration["Chat:Fallbacks:Default"] ?? 
-                                 "The service is temporarily unavailable.",
-            _ => _configuration["Chat:Fallbacks:Default"] ?? 
-                "The service is temporarily unavailable."
+            "timeout" => GetConfiguredFallback("Chat:Fallbacks:Timeout") ?? defaultFallback,
+            "content_filtered" => GetConfiguredFallback("Chat:Fallbacks:ContentFiltered") ?? defaultFallback,
+            _ => defaultFallback
         };
+    }
+
+    private string? GetConfiguredFallback(string key)
+    {
+        var value = _configuration[key];
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private void ValidateConfiguredApiVersion()
+    {
+        var configuredVersion = _configuration.GetValue<string>("Chat:ApiVersion", SupportedApiVersion);
+        if (!string.Equals(configuredVersion, SupportedApiVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Unsupported Chat:ApiVersion '{configuredVersion}'. This service supports only v{SupportedApiVersion}.");
+        }
+    }
+
+    private sealed class ChatV01WireResponse
+    {
+        [JsonPropertyName("request_id")]
+        public string? RequestId { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("messages")]
+        public List<string>? Messages { get; set; }
+
+        [JsonPropertyName("fallback_used")]
+        public bool FallbackUsed { get; set; }
+
+        [JsonPropertyName("error")]
+        public ChatV01WireError? Error { get; set; }
+    }
+
+    private sealed class ChatV01WireError
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
     }
 }
