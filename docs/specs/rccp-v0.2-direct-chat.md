@@ -3,7 +3,7 @@
 - Status: Proposed
 - Specification version: v0.2
 - Profile: Direct Chat
-- Last updated: 2026-09-08
+- Last updated: 2026-09-18
 - Author: Akihiro Fujimoto
 - Project: Roidoya Character Chat Platform (RCCP)
 - License: MIT
@@ -83,7 +83,6 @@ All values in this example are illustrative.
 {
   "interaction_id": "interaction:sample-input-001",
   "scope": {
-    "tenant_id": "tenant:sample",
     "service_id": "service:sample-chat"
   },
   "origin": {
@@ -111,8 +110,7 @@ The body is one normalized Direct Chat interaction envelope. It does not require
 | Field | Requirement |
 | --- | --- |
 | `interaction_id` | Non-empty string identifying input processing and response correlation |
-| `scope.tenant_id` | Non-empty string identifying the tenant |
-| `scope.service_id` | Non-empty string identifying the RCCP-based service within the tenant |
+| `scope.service_id` | Non-empty string identifying the RCCP-based service and the top-level logical scope of this contract |
 | `origin.channel_type` | Channel type; `line` for the LINE Direct Chat profile |
 | `origin.channel_instance_id` | Non-empty string identifying the configured Channel connection |
 | `conversation.id` | Non-empty string identifying the conversation |
@@ -131,24 +129,25 @@ Orchestration MUST NOT invent missing IDs or limits. The request MUST NOT contai
 
 ## 5. IDs and scope
 
+`service_id` is the top-level logical scope defined by this contract. This contract does not define an application-level tenant identifier. Organization, identity-directory, account, subscription, project, billing, and infrastructure-isolation boundaries are deployment concerns and are not represented as an RCCP tenant field.
+
 ### 5.1 Uniqueness and assignment
 
 | ID | Uniqueness scope | Assigned or resolved by |
 | --- | --- | --- |
-| Tenant | RCCP operating environment | Adapter from operator configuration |
-| Service | Tenant | Adapter from operator configuration |
-| Channel instance and Character | Tenant and service | Adapter from corresponding configuration |
-| Actor and conversation | Tenant and service | Adapter from external-user and conversation mapping |
-| Interaction | Tenant and service | Adapter for a new input; preserved for redelivery |
-| Input message | All input and output messages within tenant and service | Adapter; preserved for redelivery |
-| Output message | All input and output messages within tenant and service | Orchestration |
+| Service | RCCP operating environment | Adapter from operator configuration |
+| Channel instance and Character | Service | Adapter from corresponding configuration |
+| Actor and conversation | Service | Adapter from external-user and conversation mapping |
+| Interaction | Service | Adapter for a new input; preserved for redelivery |
+| Input message | All input and output messages within the service | Adapter; preserved for redelivery |
+| Output message | All input and output messages within the service | Orchestration |
 
-IDs are opaque strings. Example prefixes, UUIDs, and string concatenation are not required syntaxes. Different ID kinds have distinct namespaces, while input and output message IDs share the message-ID namespace. Globally unique values do not remove the requirement to validate tenant and service scope.
+IDs are opaque strings. Example prefixes, UUIDs, and string concatenation are not required syntaxes. Different ID kinds have distinct namespaces, while input and output message IDs share the message-ID namespace. Globally unique values do not remove the requirement to validate service scope.
 
 ### 5.2 Stability rules
 
 - Redelivery of the same external input MUST preserve `interaction_id` and the input `message.id`. A new input with identical text MUST receive new IDs. The two IDs MUST NOT be assumed to be equal.
-- The same tenant, service, Channel instance, Actor, and Character combination MUST resolve to the same `conversation.id`. Time, process restart, Character-setting changes, or Orchestration implementation changes alone MUST NOT change it.
+- The same service, Channel instance, Actor, and Character combination MUST resolve to the same `conversation.id`. Time, process restart, Character-setting changes, or Orchestration implementation changes alone MUST NOT change it.
 - A different Actor, Character, or Channel instance creates a different conversation. This contract does not define an explicit reset operation.
 - `channel_instance_id` identifies a configured Channel connection, not a process, server, replica, or credential. Restart, relocation, or credential rotation for the same connection MUST preserve it; a distinct bot account or Channel connection receives another ID.
 
@@ -253,7 +252,7 @@ When correlation is available, a header mismatch may use `invalid_request`.
 | --- | ---: | --- |
 | Valid output generated | 200 | `ok` with `messages` |
 | Invalid field, type, or request structure | 400 | `error` with `invalid_request` |
-| Unsupported tenant, service, or Character | 400 | `error` with `invalid_request` |
+| Unsupported service or Character | 400 | `error` with `invalid_request` |
 | Deadline expired when Orchestration receives the request | 400 | `error` with `deadline_exceeded` |
 | Deadline expires during processing | 500 | `error` with `deadline_exceeded` |
 | Temporary unavailability | 503 | `error` with `temporarily_unavailable` |
@@ -329,7 +328,7 @@ If there is no usable time before the Model call, the Model MUST NOT be called. 
 
 ## 11. Configuration and target mismatch
 
-- A tenant, service, or Character not supported by Orchestration configuration maps to `invalid_request` and HTTP 400. There is no implicit default-Character fallback.
+- A service or Character not supported by Orchestration configuration maps to `invalid_request` and HTTP 400. There is no implicit default-Character fallback.
 - Missing server configuration for an otherwise correct target is a server fault, not a client request error.
 - Statically detectable required-configuration faults MUST prevent the affected component from accepting processing.
 - If a model-selection error is discovered at runtime, it is `processing_failed` with HTTP 500. There is no implicit switch to another Model.
@@ -341,7 +340,7 @@ Configuration keys and formats, fixed values, ID algorithms, internal types, and
 
 Diagnostics are not conversation History or durable processed-event records.
 
-Ordinary diagnostics may include time, component and stage, tenant/service/interaction correlation, outcome and internal cause category, duration, Model selection, and Channel delivery outcome. If no valid interaction ID is available, diagnostics indicate that it is unavailable rather than inventing one. Provider error bodies MUST NOT be copied without sanitization.
+Ordinary diagnostics may include time, component and stage, service/interaction correlation, outcome and internal cause category, duration, Model selection, and Channel delivery outcome. If no valid interaction ID is available, diagnostics indicate that it is unavailable rather than inventing one. Provider error bodies MUST NOT be copied without sanitization.
 
 | Sensitive value | Permitted diagnostic representation |
 | --- | --- |
@@ -351,7 +350,7 @@ Ordinary diagnostics may include time, component and stage, tenant/service/inter
 
 HMAC applies only to values written to diagnostics. It does not replace Model input, Channel output text, RCCP IDs, or request and response fields. The Adapter applies HMAC to an external user ID and does not send the raw value to Orchestration.
 
-The HMAC key is dedicated and separate from API credentials. Comparison scope is separated by tenant, service, and purpose. An HMAC value is not authorization, Idempotency, or an RCCP interaction or message ID. HMAC diagnostics are not anonymous or automatically public. This specification does not authorize full request/response or Character-instruction logging.
+The HMAC key is dedicated and separate from API credentials. Comparison scope is separated by service and purpose. An HMAC value is not authorization, Idempotency, or an RCCP interaction or message ID. HMAC diagnostics are not anonymous or automatically public. This specification does not authorize full request/response or Character-instruction logging.
 
 | Failure | Required behavior |
 | --- | --- |
@@ -386,6 +385,8 @@ A conforming implementation verifies at least the following behavior:
 Conformance with this contract alone does not establish Production readiness, durable processing, exactly-once behavior, or a supported RCCP deployment profile.
 
 ## 14. Versioning and compatibility
+
+The Proposed revision published on 2026-09-08 required `scope.tenant_id`. This Proposed revision removes that field before v0.2 finalization and defines `scope.service_id` as the top-level logical scope. An implementation targeting the earlier proposal is not conforming to this revision unless updated.
 
 - The v0.1-to-v0.2 request and response change may be breaking.
 - Adapter and Orchestration require matching contracts, but need not be built from the same source commit. Contract tests establish the supported pairing.
