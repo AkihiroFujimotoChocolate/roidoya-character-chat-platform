@@ -9,7 +9,15 @@ Development is currently focused on implementing the platform described by the f
 - [RCCP Concept](docs/concept/README.md)
 - [RCCP Architecture and Technical Disclosure](docs/publications/rccp-architecture-and-technical-disclosure.md)
 
-The Technical Disclosure includes both implemented and not-yet-implemented arrangements. Its disclosed alternatives include ontology and knowledge-graph-backed character knowledge, Open Knowledge Format authoring and exchange, direct and many-to-many conversation profiles, character-to-character coordination, topic- and audience-scoped continuity across linked channel identities, layered input/output rule evaluation, replaceable language detection and language policy, prompt-injection-resistant execution boundaries, structured target-specific affect and expression output, cyclic authoritative-world and observer-scoped belief processing, validated action resolution, authorized creator/operator intervention, and bounded Character autonomy.
+The Technical Disclosure includes both implemented and not-yet-implemented arrangements. Its disclosed alternatives include ontology and knowledge-graph-backed character knowledge, Open Knowledge Format authoring and exchange, direct and many-to-many conversation profiles, character-to-character coordination, topic- and audience-scoped continuity across linked channel identities, layered input/output rule evaluation, replaceable language detection and language policy, prompt-injection-resistant execution boundaries, structured target-specific affect and expression output, cyclic authoritative-world and observer-scoped belief processing, validated action resolution, authorized creator/operator intervention, bounded Character autonomy, and independent Character-integrity evaluation with trajectory-aware evidence, domain-separated state commits, and final egress control.
+
+## Public Edition #6 highlights
+
+Public Edition #6 discloses independent Character-integrity guards for generative character systems. It separates Character generation from integrity evidence generation, policy authorization, consent authority, durable-state commit authority, world-action resolution, expression rendering, and final egress control.
+
+The added embodiments include typed probabilistic evidence without embedded authorization, multi-turn trajectory-risk evaluation, domain-separated state commits, TOCTOU-safe revalidation, bounded fallback behavior, and evaluator-failure handling. Relevant search terms include autonomous-agent safety boundaries, LLM guardrails, policy decision points, state-commit authorization, egress guardians, Character consistency enforcement, and model judgment separated from authorization.
+
+See Sections 97–104, Figures 21–22, Reference Embodiments R12–R15, Combinations BP–BW, and Technical Propositions TP-53–TP-60 in the [Technical Disclosure](docs/publications/rccp-architecture-and-technical-disclosure.md).
 
 The current implementation does not yet implement the platform described in these documents. It should be regarded as earlier implementation work rather than as the current RCCP specification.
 

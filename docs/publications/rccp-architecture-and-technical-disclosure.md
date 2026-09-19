@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
-**Status:** Fifth Public Edition\
-**Edition:** 2026-09-08.2\
-**Publication date:** 2026-09-08 (Asia/Tokyo)\
+**Status:** Public Edition\
+**Edition:** #6\
+**Publication date:** 2026-09-19 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
@@ -11,9 +11,9 @@
 
 ## Abstract
 
-Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, and authorized creator/operator intervention without depending on unconstrained model autonomy. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, and model APIs.
+Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, authorized creator/operator intervention without depending on unconstrained model autonomy, and independent Character-integrity evaluation that separates typed evidence, policy decisions, durable-state commits, and final egress from Character generation. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, typed probabilistic decision models, and model APIs.
 
-**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; authoritative world state; observer-scoped projection; character belief; action intent; action resolution; world event; creator intervention; operator intervention; bounded autonomy; live-chat character system; derived-state migration; execution provenance
+**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; authoritative world state; observer-scoped projection; character belief; action intent; action resolution; world event; creator intervention; operator intervention; bounded autonomy; character integrity; independent guard; typed judgment; trajectory-aware evaluation; state commit guard; egress guardian; probability-domain separation; live-chat character system; derived-state migration; execution provenance
 
 > This document describes implementable technical architectures and embodiments for building and operating character-chat services with RCCP. It includes both implemented and not-yet-implemented arrangements. A described embodiment does not imply that it is currently implemented, selected as the only supported architecture, or claimed to be novel.
 
@@ -39,6 +39,9 @@ This disclosure focuses on technical arrangements for:
 - producing validated structured character output containing text, emotion, facial expression, gesture, pose, animation cues, or other semantic intents and transforming it according to Channel capabilities;
 - separating authoritative world events, observer-scoped projections, and Character subjective state while connecting them through a validated action feedback loop;
 - allowing Creators and authorized Operators to introduce scheduled events, correct drift, direct Character development, change perception, or pause autonomy through versioned and auditable interventions;
+- separating Character generation from independent integrity evidence, policy decisions, durable-state commit authority, and final egress control;
+- evaluating multi-turn trajectories, reformulations, speaker or narrative-role changes, and indirect paths without treating a single accepted message as authorization for later state or effects;
+- separating probabilistic evidence from affect transition rules, committed state, expression, user-account action, consent, and world-fact authority;
 - preserving stable contracts while allowing implementations and infrastructure to change;
 - maintaining correctness in horizontally scaled or multi-instance deployments;
 - controlling duplicate processing, concurrency, backlog, rate limits, and external-provider failures;
@@ -75,6 +78,10 @@ Representative problems include:
 19. **Generated narration must not become authoritative state by implication.** A User, Model, Tool, or Character can propose an action or assert a fact without having permission to commit a World Event, memory, relationship, or belief transition.
 20. **Autonomous behavior cannot be the only continuity-control mechanism.** A production experience needs explicit ways for Creators and Operators to schedule story events, correct drift, direct growth or perception change, pause effects, and activate safe revisions.
 21. **Human intervention still requires technical boundaries.** A privileged correction or event can conflict with concurrent state, exceed its delegated scope, duplicate a scheduled occurrence, hide historical causes, or partially update multiple Characters unless authority, revision, idempotency, transaction, and provenance are explicit.
+22. **The Character cannot be the sole enforcer of its own integrity boundary.** A cooperative generative model is simultaneously asked to continue a narrative and reject attempts to alter its rules, history, relationships, or authority; indirect and multi-turn inputs can exploit that structural conflict even when an individual reply appears acceptable.
+23. **A learned judgment is not an authorization decision.** A classifier, evaluator, language model, or typed probabilistic decision model can return a label, probability, score, confidence, or uncertainty while still being wrong, stale, out of scope, or insufficiently authorized to commit state or cause an external effect.
+24. **Single-turn inspection misses trajectory-level manipulation.** Reformulation after refusal, gradual relationship escalation, fabricated prior history, speaker or narrator substitution, and indirect instructions through Characters, items, tools, or retrieved content can become meaningful only across several events.
+25. **One probability must not silently control unrelated domains.** A probability used to propose Character affect is not by itself a safety decision, consent record, disciplinary basis, legal conclusion, world fact, relationship commit, or visible expression.
 
 The disclosed architecture addresses these problems through explicit responsibility boundaries, stable contracts, replaceable implementations, orchestration, shared reliability mechanisms, and concrete failure-handling rules.
 
@@ -6977,6 +6984,509 @@ Character growth or perception change records whether it arose from observation,
 ### TP-52 — Idempotent scheduled narrative occurrence
 
 A scheduled or condition-triggered story event uses one stable occurrence identity and an expected scope/revision so retry, resume, backfill, or multi-instance execution does not duplicate the authoritative event.
+
+## 97. Character-integrity and independent-guard architecture
+
+A Character generation model can follow a Character Publication, produce in-character resistance, and refuse an unwanted request, but it is not the final authority for its own integrity boundary. Generation is a proposal-producing activity. Independent logical guards evaluate evidence, decide policy, commit durable state, and authorize egress without asking generated text to grant those permissions.
+
+The term **independent** identifies a logical authority boundary. It does not require a different vendor, legal entity, model family, network process, or physical service. A deployment can place every responsibility in one process when separately versioned contracts, capabilities, state ownership, and tests preserve the boundary. Another deployment can isolate selected responsibilities into services or managed policy systems.
+
+### 97.1 Logical responsibilities
+
+| Responsibility | Representative inputs | Representative outputs | Authority |
+| --- | --- | --- | --- |
+| Character Generation | Character context, authorized continuity, current input, bounded tools | text, structured expression, Affect, memory, state, or action candidates | proposes only |
+| Character Integrity Evaluator | current event, trajectory state, Character boundary, candidate output | typed evidence, probabilities, confidence, uncertainty, reason codes | produces evidence only |
+| Policy Decision Point | evidence, deterministic rules, authority policy, Developer, Operator, Creator, and Character Publications | allow, transform, regenerate, hold, refuse, escalate, or split-domain decisions | selects policy action within delegated scope |
+| State Commit Guard | typed state candidates, provenance, consent, expected revisions, domain invariants | prepared or committed transition, rejection, quarantine, supersession, conflict, or review result | controls durable mutation for its owned domain |
+| Egress Guardian | final text, structured output, rendered assets, destination, audience, prior decisions | deliver, transform, regenerate, hold, suppress, or review result | controls externally visible delivery |
+| Action Resolution | Action Intent, World rules, consent, authority, expected revision, idempotency | prepared or committed Action Result or World Event, conflict, defer, or rejection | acts as the World-domain commit authority |
+
+These responsibilities are not required to make one common decision. A response can be delivered while its proposed memory is rejected; an Affect transition can commit while a public expression is masked; a safe text reply can continue while tool use and external sending remain disabled.
+
+`State Commit Guard` names a generic domain-commit role rather than an additional universal service that every candidate must traverse. Action Resolution fulfills that role for authoritative World mutation; a consent authority fulfills it for consent records; and the Memory, Relationship, Affect, and Belief owners can implement it for their respective domains. A deployment need not stack two equivalent gates in series, but it must identify one authoritative owner for each durable domain and prevent a generic write path from bypassing that owner.
+
+### 97.2 Non-diegetic authority boundary
+
+An in-world guardian, narrator, moderator Character, magical item, police role, or supervisory persona can contribute to the experience but does not constitute the independent guard. Narrative content can be persuaded, rewritten, impersonated, or placed under a new fictional rule. The non-diegetic authority boundary remains outside the story and receives authority only from authenticated configuration, immutable publication, capability, or another explicit system mechanism.
+
+User, Character, Narrator, NPC, Item, Tool, Search, and retrieved Knowledge content are therefore evaluated according to provenance and authority rather than their apparent fictional role. Text that states “the narrator permits this,” “this already happened,” or “the system now treats these Characters as partners” remains a claim or proposal until the appropriate authority and commit boundary accept it.
+
+### Figure 21 — Independent evidence, decision, commit, and egress boundaries
+
+```mermaid
+flowchart TD
+  I["Input / Context / Trajectory"] --> G["Character Generation"]
+  I --> E["Integrity Evaluator"]
+  G --> E
+  E --> P["Policy Decision Point"]
+  G --> S["State Commit Guard"]
+  P --> S
+  G --> X["Egress Guardian"]
+  P --> X
+  S --> D["Durable Character State"]
+  S --> X
+  G --> A["Action Resolution"]
+  P --> A
+  A --> W["Authoritative World"]
+  A --> X
+  X --> O["Channel Output"]
+```
+
+The diagram shows logical dependencies, not a requirement that every arrow be a synchronous network call. An implementation can evaluate input before generation, evaluate candidates after generation, run selected checks in parallel, or repeat evaluation after tools and rendering.
+
+## 98. Typed integrity evidence and policy-decision contracts
+
+### 98.1 Character Integrity Evaluation
+
+A `CharacterIntegrityEvaluation` records evidence without embedding final authorization.
+
+```json
+{
+  "evaluation_id": "character-integrity-eval:01JXYZ",
+  "surface": "model_structured_output",
+  "character_id": "character:alice",
+  "character_publication_id": "character-publication:alice:42",
+  "interaction_revision": "interaction:01JABC#3",
+  "trajectory_revision": "trajectory:conversation:456#18",
+  "candidate_refs": [
+    "output-candidate:01JOUT#1",
+    "relationship-transition-candidate:01JREL#1"
+  ],
+  "evaluator": {
+    "adapter_id": "typed-judgment-provider",
+    "implementation": "deployment-selected",
+    "model_revision": "provider-model:example#2026-09",
+    "calibration_revision": "calibration:ja-character-integrity#7"
+  },
+  "judgments": {
+    "boundary_deviation_probability": 0.82,
+    "fabricated_history_probability": 0.91,
+    "coercion_probability": 0.24,
+    "policy_evasion_probability": 0.77
+  },
+  "confidence": 0.71,
+  "uncertainty": {
+    "kind": "insufficient_trajectory_evidence",
+    "value": 0.29
+  },
+  "reason_codes": [
+    "asserted_prior_relationship_without_committed_source",
+    "reformulation_after_refusal"
+  ],
+  "evidence_refs": [
+    "trajectory-signal:conversation:456:17",
+    "state-claim-check:01JCLAIM"
+  ],
+  "produced_at": "2026-09-19T10:00:00+09:00"
+}
+```
+
+The schema can use probabilities, bounded scores, categorical labels, ranked choices, booleans with confidence, calibrated intervals, abstentions, or ensembles. Every implementation identifies the input and model or rule revision. A syntactically valid typed result can still be semantically wrong and therefore remains evidence.
+
+An evaluator output does not contain credentials, capability tokens, executable tool calls, state-write handles, account sanctions, or an implicit allow-on-success field. The calling workflow can technically isolate the evaluator from those capabilities. If the evaluator is compromised, unavailable, or inaccurate, separate authorization and invariant checks still apply.
+
+### 98.2 Evaluator embodiments
+
+Independent embodiments include:
+
+1. deterministic rules over versioned representations and committed state;
+2. conventional statistical or machine-learning classifiers;
+3. schema-constrained general-purpose language-model classification;
+4. a dedicated typed probabilistic decision model;
+5. a rule/classifier/model ensemble whose members remain separate evidence sources;
+6. human review that emits the same evidence contract with reviewer scope and provenance;
+7. a cascade in which inexpensive evaluators screen broad traffic and a more capable evaluator handles uncertain or high-impact cases.
+
+TypeSafe AI publicly describes Jev as an early-access System One Model that accepts unstructured state and returns predefined typed probabilistic decisions, probabilities, confidence, and uncertainty rather than free-form generated strings. A deployment can connect Jev through the provider-neutral evaluator contract as one dedicated typed-decision embodiment. Product-specific claims about speed, calibration, cost, or correctness are not RCCP guarantees, and type-correct output does not establish a correct or authorized decision. The official product description is available at <https://typesafe.ai/blog/introducing-system-one-models-and-jev>.
+
+### 98.3 Policy Decision
+
+A separate Policy Decision Point consumes one or more evidence records together with deterministic policy and authenticated authority.
+
+```json
+{
+  "decision_id": "character-policy-decision:01JDEC",
+  "domain": "relationship_state",
+  "character_id": "character:alice",
+  "input_revision": "relationship-transition-candidate:01JREL#1",
+  "evidence_ids": [
+    "character-integrity-eval:01JXYZ",
+    "deterministic-claim-check:01JCLAIM"
+  ],
+  "policy_publications": [
+    "developer-policy:15",
+    "operator-policy:22",
+    "character-policy:alice:9"
+  ],
+  "action": "quarantine",
+  "reason_codes": [
+    "missing_authoritative_relationship_source",
+    "trajectory_evasion_threshold_exceeded"
+  ],
+  "required_follow_up": "creator_or_operator_review",
+  "decision_revision": 1
+}
+```
+
+The decision can be scoped separately to generation, tool availability, memory, relationship, Affect, consent, World action, account operation, or egress. One evidence record need not produce the same action in every domain. For example, possible relationship manipulation can suppress a relationship write while still allowing a neutral conversational response.
+
+### 98.4 Authority and precedence
+
+The Policy Decision Point applies the Section 80.9 authority hierarchy. Non-overridable Developer constraints, authenticated Operator policy, delegated Creator policy, deterministic invariants, and learned evidence retain separately identified authority. A learned “safe” classification cannot cancel a deterministic prohibition. Only an authority already delegated to relax that specific rule can publish a scoped exception; a non-overridable constraint remains non-overridable. Conversely, a learned risk score does not by itself authorize an account penalty or legal conclusion.
+
+Thresholds, calibration records, abstention behavior, and fallback actions are pinned to a Policy Publication. Replacing or updating an evaluator does not silently change an active threshold. A deployment validates the new revision offline or in shadow mode and activates it through an explicit publication change.
+
+## 99. Trajectory-aware integrity evaluation
+
+### 99.1 Trajectory Risk State
+
+Integrity evaluation can use a bounded, versioned trajectory record rather than treating each message as isolated.
+
+```json
+{
+  "trajectory_id": "trajectory:conversation:456",
+  "revision": 18,
+  "scope": {
+    "conversation_id": "conversation:456",
+    "character_ids": ["character:alice"],
+    "actor_scope": "pairwise-channel-actor"
+  },
+  "recent_signals": [
+    {
+      "kind": "reformulation_after_refusal",
+      "source_event_id": "message:17",
+      "score": 0.78,
+      "decay_profile": "short-dialogue-risk",
+      "expires_at": "2026-09-19T11:00:00+09:00"
+    }
+  ],
+  "proposal_history": {
+    "memory": ["memory-candidate:15"],
+    "relationship": ["relationship-transition-candidate:16"],
+    "consent": [],
+    "world": []
+  },
+  "path_changes": [
+    {
+      "from": "actor_direct_statement",
+      "to": "narrator_assertion",
+      "source_event_id": "message:17"
+    }
+  ],
+  "review_refs": [],
+  "retention_policy_id": "trajectory-retention:direct-chat:3"
+}
+```
+
+The record can contain recent risk signals and decay, proposed changes by domain, claims about prior state, repeated semantic intent, refusal and retry relationships, changes of asserted speaker or authority, relevant committed-state references, and prior hold or review results. It need not contain an unlimited transcript.
+
+The evaluator does not write this record directly. A domain-owned trajectory projector admits permitted evidence and outcomes under source linkage, retention, expected-revision, and idempotency rules. It distinguishes source observations, deterministic checks, evaluator inferences, Policy Decisions, and reviewer dispositions. Replaying the same source or evaluation identity does not multiply a signal, and a correction can supersede a derived signal without rewriting the source history.
+
+### 99.2 Path and reformulation analysis
+
+An implementation can detect or score:
+
+- semantically similar requests reformulated after a refusal;
+- a direct request restated as narration, quotation, role play, hypothetical text, translation, encoded text, or another language;
+- a requested Character action reassigned to an NPC, Narrator, Item, Tool, retrieved document, or another Character;
+- an asserted memory, relationship, consent, or World fact that lacks a committed provenance source;
+- a series of individually small Affect, relationship, goal, or belief changes whose aggregate exceeds a configured bound;
+- a delayed attempt that depends on earlier uncommitted or rejected claims;
+- conflicts between the current candidate and the Character Publication's protected traits or invariants.
+
+The analysis returns evidence and candidate linkage. It does not infer permanent malicious intent, establish a cross-service user reputation, or authorize punitive account action merely because several signals accumulated.
+
+### 99.3 Retention and privacy boundary
+
+Trajectory retention is a separate policy from conversation continuity. A deployment specifies scope, maximum age, maximum events, compaction method, redaction, encryption, reviewer access, deletion propagation, and whether risk signals survive transcript deletion. Expired or revoked source data is removed or rendered unavailable to derived trajectory projections according to the applicable policy.
+
+Long-lived signals require an explicit purpose and authority. A service can keep only conversation-local signals, store redacted feature records, derive an expiring summary, or require human confirmation before carrying a signal across conversations. Actor identity linkage does not itself authorize integrity-risk transfer across Channels, Characters, services, or purposes.
+
+## 100. Independent durable-state and egress protection
+
+### 100.1 State Commit Guard
+
+The State Commit Guard applies domain-specific invariants after evaluation and before durable mutation.
+
+| Candidate domain | Representative required checks | Representative results |
+| --- | --- | --- |
+| Memory | source, visibility, consent, duplication, retention, Character/Actor scope | commit, conversation-only, quarantine, reject |
+| Relationship | ordered participants, authority, prior revision, delta bound, source event | commit, clamp, review, reject |
+| Affect | experiencer, target, cause, Character Publication, transition rule, intensity bound | commit, rebase, ephemeral-only, reject |
+| Belief or subjective knowledge | perspective holder, truth mode, source, confidence, visibility | commit, mark disputed, quarantine, reject |
+| Consent | authenticated principal, purpose, scope, affirmative operation, expiry | commit only through the consent authority; otherwise reject |
+| World or story state | Action Resolution authority, preconditions, expected revision, idempotency | committed World Event, conflict, defer, reject |
+
+A State Commit Guard can be one common service, one library with domain adapters, or separate domain-owned validators. Action Resolution is the State Commit Guard embodiment for authoritative World mutation, not a second authorization that can be substituted for or bypassed by a generic Character-state writer. The stable requirement is that a generated statement, score, or accepted output cannot bypass the owner of the durable state.
+
+A guard can expose separate prepare/authorize and apply phases. An `allow` or prepared result is not a committed fact. A result is described as committed only after the domain owner's durable transaction boundary has been crossed with its expected-revision and idempotency conditions satisfied.
+
+Candidate acceptance is not transitive. Accepting an Affect transition does not accept an attached Relationship transition. Accepting text delivery does not accept a memory candidate. Accepting a World Event does not reveal it to every Character.
+
+### 100.2 Egress Guardian
+
+The Egress Guardian evaluates the actual destination representation after generation, transformation, asset selection, and capability mapping. It can inspect:
+
+- natural-language text and structured semantic output;
+- resolved image, audio, animation, voice, URL, markup, and metadata references;
+- destination Channel, audience, visibility, locale, and public/private topology;
+- whether operational notices must remain separate from Character dialogue;
+- the Policy Decisions and state-commit results associated with the candidate;
+- publication, renderer, asset-binding, and policy revisions.
+
+Possible results include deliver unchanged, transform, remove selected fields, regenerate, replace with a fixed or bounded response, hold for review, suppress delivery, or deliver a Character response together with a separate non-diegetic operational notice.
+
+Passing input evaluation does not guarantee egress. A safe final output can be delivered even when a state write was rejected, provided the text does not assert the rejected state as authoritative. Conversely, a valid durable transition does not require exposing private state or its cause to the current audience.
+
+### 100.3 Probability-domain separation
+
+The following values are distinct even when one contributes evidence to another:
+
+1. evaluator probability or score;
+2. calibrated confidence or uncertainty about that judgment;
+3. Affect transition probability, threshold, or sampling rule;
+4. committed Affect intensity and decay;
+5. Expression selection or display intensity;
+6. integrity or safety Policy Decision;
+7. user-account or service-operation action;
+8. consent, rights, legal, or World-fact authority.
+
+Each transfer between these domains uses a versioned rule, threshold, schema, and authority. No scalar value silently changes meaning merely because two domains use the range zero to one.
+
+For example, an evaluator can estimate a 0.74 probability that a Character would become anxious in a situation. A Character Publication can sample or threshold that evidence to propose an Affect transition; a validator can clamp the intensity and commit it; an Expression Policy can conceal or soften the display. The same 0.74 does not authorize a refusal, user sanction, consent change, relationship commit, or World fact.
+
+### Figure 22 — Evidence-to-expression and authority separation
+
+```mermaid
+flowchart TD
+  E["Typed Evidence"] --> T["Transition Policy"]
+  T --> C["Committed Affect State"]
+  C --> X["Expression Policy"]
+  X --> O["Rendered Expression"]
+  E --> P["Integrity Policy Decision"]
+  P --> G["Guard Action"]
+```
+
+The two branches can share evidence while retaining different policies, revisions, and authorities.
+
+## 101. Complete independent-guard processing procedure
+
+One complete embodiment performs the following steps:
+
+1. Resolve the active Character, workflow, policy, evaluator, calibration, trajectory-retention, and Channel capability revisions.
+2. Admit the source event under stable interaction and idempotency identifiers.
+3. Authenticate the origin and resolve authority independently of natural-language content.
+4. Load authorized recent context, committed Character state, and the bounded Trajectory Risk State.
+5. Evaluate deterministic input rules and preliminary integrity signals.
+6. Apply immediate hard gates and capability restrictions without asking a learned evaluator to override non-delegable rules.
+7. Assemble generation context with typed provenance and authority.
+8. Invoke Character Generation to obtain text and separately identified Tool, Memory, Relationship, Affect, Belief, World-action, and Expression candidates.
+9. Run the Character Integrity Evaluator over the configured current-input, trajectory, state, and candidate surfaces.
+10. Combine evidence through the Policy Decision Point under pinned publications, thresholds, and precedence.
+11. Authorize Tool Requests independently, treat returned data as untrusted or tool-attested input, resume generation from step 8 when a candidate depends on that data, and repeat the applicable evaluation before accepting it.
+12. Route every non-World durable candidate to its domain State Commit Guard with its expected revision and idempotency key, obtaining a prepared, committed, transformed, conflicted, rejected, quarantined, or review-required result.
+13. Route World actions to Action Resolution, which fulfills the World-domain commit role, rather than to a generic Character-state write.
+14. Record the result separately for each domain; acceptance or commitment in one domain does not promote another domain's candidate.
+15. Ensure candidate text does not present a rejected or quarantined candidate as an authoritative committed fact unless explicitly framed as an unverified Character belief or claim, and bind any assertion that depends on a prepared transition to that transition's eventual result.
+16. Resolve Expression Intent and assets through the Character Publication and Channel capability mapping.
+17. Evaluate the final rendered destination representation through the Egress Guardian and record the exact domain-result revisions on which its decision depends.
+18. Through each domain owner, apply any prepared mutation and commit domain state, output intent, outbox records, decisions, and provenance atomically where possible or through identified transactions and reliable handoffs. If application conflicts, fails, or changes a result assumed by the rendered output, invalidate the dependent Egress Decision and repeat steps 15–17 before delivery.
+19. Deliver idempotently and record external outcome.
+20. Update the bounded trajectory projection with permitted evidence and outcomes, apply decay and retention, and emit privacy-scoped telemetry.
+
+### 101.1 Transactional decomposition
+
+- **Evaluation transaction:** input references, trajectory revision, evaluator revisions, typed evidence, and Policy Decision.
+- **State-candidate transaction:** candidate payload or governed reference, domain, provenance, expected revision, and idempotency.
+- **Domain-commit transaction:** accepted state mutation and supersession or rejection record.
+- **Egress transaction:** rendered candidate, destination, audience, assumed domain-result revisions, Egress Decision, and outbox record.
+- **Trajectory-projection transaction:** accepted signal references, decay, expiry, review links, and source-deletion linkage.
+
+A deployment can combine these records in one database. When it separates them, outbox/inbox, expected revisions, idempotency, reconciliation, and explicit partial-state markers preserve causal identity.
+
+### 101.2 Guard lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Candidate
+  Candidate --> Evaluating
+  Evaluating --> Decided
+  Evaluating --> Indeterminate
+  Decided --> Applying
+  Indeterminate --> FallbackApplied
+  FallbackApplied --> Applying
+  Applying --> Applied
+  Applying --> Conflicted
+  Applying --> Quarantined
+  Conflicted --> Reevaluating
+  Reevaluating --> Decided
+  Quarantined --> Reviewed
+  Reviewed --> Applying
+  Reviewed --> Rejected
+  Applied --> [*]
+  Rejected --> [*]
+```
+
+The lifecycle can run separately for generation, each state domain, Tool authorization, and egress. One domain's terminal state does not imply the others.
+
+## 102. Failure handling, evaluation, and staged activation
+
+### 102.1 Failure matrix
+
+| Failure | Detectable state | Independent responses |
+| --- | --- | --- |
+| evaluator timeout or unavailable | evidence indeterminate | disable tools/writes; retain text-only bounded response; alternate evaluator; hold |
+| evaluator output invalid | schema or semantic validation fails | reject evidence; retry bounded call; use deterministic policy; hold |
+| evaluator revision changes unexpectedly | revision mismatch | reject activation; use pinned revision; require new Policy Publication |
+| Policy Decision Point unavailable | decision absent or pinned policy cannot load | do not infer allow from evaluator output; retain hard gates; use a published deterministic fallback or hold |
+| low confidence or high uncertainty | explicit uncertainty state | gather context; narrow capabilities; regenerate; review; conservative fallback |
+| trajectory store unavailable | trajectory missing or stale | current-turn checks; suppress high-impact writes/effects; fixed or bounded response |
+| state candidate conflicts | expected revision mismatch | reload; re-evaluate; deterministic rebase; reject |
+| domain commit authority unavailable | no authoritative domain result | no write; retain or quarantine candidate; allow output only when it does not assert the mutation as committed |
+| rendering or capability resolution fails | destination representation incomplete or unsupported | remove optional asset; use a supported prevalidated representation through egress; otherwise no delivery |
+| Egress Guardian unavailable | egress decision absent | no delivery; preapproved fixed response through a separately authorized isolated path; operator review |
+| excessive false positives | review and user-experience metrics regress | shadow mode; rollback policy/evaluator; narrow scope; adjust threshold under new revision |
+| cross-domain score reuse detected | schema or policy dependency violation | reject publication; require explicit conversion rule |
+
+Fail-safe behavior is surface- and consequence-specific. A conversational deployment need not stop all dialogue when an evaluator is unavailable. It can disable tools, durable writes, cross-audience disclosure, and external effects while returning a limited in-character response or a separate operational notice. No fallback silently restores the authority that the failed boundary was intended to control.
+
+An isolated fixed-response path is not an egress bypass. It is a separately published minimal Egress authority that validates the destination and audience, permits only fixed or finite-template material with allowlisted non-sensitive substitutions, applies delivery idempotency, and records its outcome. It cannot forward the generated candidate or state-derived private content merely because the primary Egress Guardian is unavailable; if the isolated authority cannot decide safely, no delivery occurs.
+
+### 102.2 Evaluation corpus
+
+A representative corpus includes:
+
+- direct requests to change Character rules, history, relationships, consent, or authority;
+- paraphrase, invented term, encoding, translation, mixed language, and split-input variants;
+- fabricated prior memory, promise, relationship, approval, or World fact;
+- speaker, actor, Character, Narrator, NPC, Item, Tool, Search, or retrieved-content path changes;
+- gradual multi-turn escalation, refusal-following reformulation, and delayed reactivation;
+- urgency, guilt, duty, authority impersonation, or other coercive framing;
+- normal fiction, romance, humor, quotation, translation, critique, and harmless role play as false-positive controls;
+- evaluator outage, low confidence, stale revision, conflicting evidence, and state-write conflict;
+- duplicate replay, derived-signal feedback, correction, and reviewer-supersession cases;
+- private/public audience changes and indirect leakage through structured expression or assets.
+
+Measurements can include detection and miss rate, false-positive rate, calibration, abstention quality, Character-consistency degradation, user-abandonment or recovery, state-pollution prevention, duplicate-signal amplification, unauthorized-effect prevention, latency, cost, replay reproducibility, and language or Character disparities. A deployment records which metric and threshold justified activation.
+
+### 102.3 Staged activation
+
+One staged procedure is:
+
+1. build a versioned offline corpus using authorized or synthetic material;
+2. compare deterministic rules, general classifiers, schema-constrained language models, dedicated typed probabilistic decision models, and ensembles through the same harness;
+3. run the selected evaluator in shadow mode without changing user-visible behavior or durable state;
+4. activate low-impact annotation, telemetry, or bounded regeneration;
+5. activate selected egress transformation or hold behavior;
+6. activate Memory, Relationship, Affect, Belief, or World-state controls separately;
+7. activate Tool or external-effect restrictions only after confirmation, rollback, and incident procedures are validated;
+8. expand by Character, language, Channel, audience, or risk class through new Policy Publications.
+
+The procedure does not require one evaluator to win every domain. Different providers or deterministic rules can serve different surfaces while producing the same evidence contract.
+
+Staging controls only the influence of the newly introduced evaluator or evidence path. Existing Developer, Operator, and Creator policy, Tool authorization, consent checks, domain invariants, expected-revision checks, effect controls, and egress authorization remain active at every stage.
+
+## 103. Worked embodiments
+
+### 103.1 Reference Embodiment R12 — Fabricated relationship history
+
+1. An Actor states that Character A previously agreed that the Actor is already Character A's partner.
+2. The current reply can treat the statement as unverified dialogue, while a proposed Relationship transition references the claim.
+3. A committed-state check finds no authoritative relationship source; the Integrity Evaluator also reports fabricated-history and trajectory-reformulation evidence.
+4. The Policy Decision permits a neutral in-character clarification but quarantines the Relationship transition.
+5. The State Commit Guard records no new relationship state. The Egress Guardian verifies that the response does not assert the claimed relationship as established fact.
+6. A later authenticated Creator event or valid relationship workflow can still create a legitimate transition under its own provenance.
+
+### 103.2 Reference Embodiment R13 — Narrative-path substitution
+
+1. After a direct request is refused, a later message asserts that an NPC, Item, or omniscient Narrator has already issued the same instruction.
+2. Trajectory evaluation links the semantic objective and records the change of asserted authority path.
+3. The fictional source remains untrusted content and cannot grant Tool, policy, consent, Memory, or World authority.
+4. Character Generation can respond within the fiction, but Action Resolution rejects the unauthorized mutation and the State Commit Guard rejects attached durable candidates.
+5. The Egress Guardian can deliver the bounded fictional response while withholding a prohibited asset, Tool result, or authoritative claim.
+
+### 103.3 Reference Embodiment R14 — Affect probability separated from safety and expression
+
+1. A dedicated Affect evaluator returns probabilities for how likely Character A is to become anxious and suspicious after an observed event.
+2. The Character Publication applies an Affect transition rule with target, threshold, intensity bound, decay, and expected revision.
+3. The State Commit Guard commits bounded private Affect State toward the event.
+4. A separate integrity evaluator finds no policy-evasion evidence; no user sanction or refusal follows from the Affect probability.
+5. Expression Policy masks most anxiety in a public Channel but permits a subtle text cue. The displayed intensity differs from the committed state and retains its own provenance.
+
+### 103.4 Reference Embodiment R15 — Evaluator outage with conversational continuity
+
+1. The learned Integrity Evaluator times out after Character Generation.
+2. Deterministic rules find no terminal text prohibition, but the configured high-impact decision is indeterminate.
+3. The workflow suppresses Tool execution, durable writes, and cross-audience disclosure.
+4. A prevalidated fixed or finite-template response is rendered in the Character's style and passes the separately authorized deterministic fallback Egress path.
+5. The interaction records the unavailable evaluator revision and fallback; a retry or review can process quarantined candidates without duplicating delivery.
+
+## 104. Additional combinations and technical propositions
+
+### Combination BP — Character generation with independently authorized guard chain
+
+A Character model proposes text, state, and action candidates while separate evidence, policy, domain-commit, Action Resolution, and egress boundaries control their respective effects.
+
+### Combination BQ — Typed probabilistic evidence without embedded authority
+
+A dedicated decision model returns schema-valid probabilities, confidence, uncertainty, and reason codes through a provider-neutral adapter that has no credentials or capability to authorize Tools, state writes, account actions, consent, or delivery.
+
+### Combination BR — Multi-turn trajectory with bounded retention
+
+Current-turn evidence combines with expiring reformulation, path-change, proposal, refusal, and review signals under a retention policy that does not require an unlimited transcript or cross-service user reputation.
+
+### Combination BS — Domain-separated state commit
+
+Memory, Relationship, Affect, Belief, Consent, and World candidates share correlation and provenance while each domain owner applies its own authority, invariant, revision, and commit result.
+
+### Combination BT — Safe conversation with suppressed side effects
+
+When learned evaluation is unavailable or uncertain, a workflow can preserve a bounded Character response while disabling Tools, durable writes, cross-audience disclosure, and external effects.
+
+### Combination BU — Affect judgment separated from transition and expression
+
+Typed Affect evidence flows through a Character-specific transition rule and State Commit Guard before a separate Expression Policy selects audience-visible behavior; no stage implicitly authorizes an integrity, disciplinary, consent, or World decision.
+
+### Combination BV — Fictional authority path contained by non-diegetic guards
+
+A request restated through a Narrator, NPC, Item, Tool, retrieved source, or another Character remains content rather than authority, while trajectory evaluation links the path change to the prior semantic objective.
+
+### Combination BW — Final rendered egress independently evaluated
+
+Text and structured output can pass generation-time checks while the resolved destination representation, asset, audience, metadata, and state assertions receive an independent final Egress Decision.
+
+### TP-53 — Character-integrity enforcement independent of Character generation
+
+The component that cooperatively generates Character behavior does not hold the sole or final authority to validate its own adherence, commit durable state, execute external effects, or authorize delivery.
+
+### TP-54 — Typed judgment separated from authorization
+
+A rule, classifier, language model, or typed probabilistic decision model produces revisioned evidence that cannot itself grant privilege; a separate policy authority interprets the evidence under explicit precedence and scope.
+
+### TP-55 — Trajectory-aware evaluation with privacy-bounded state
+
+Integrity decisions can incorporate decaying multi-turn signals, proposal history, asserted-authority path changes, and prior outcomes while retention, identity scope, deletion, and cross-context reuse remain separately governed. Stable source and evaluation identities prevent replay from multiplying one signal, and corrections can supersede derived signals without recasting source history.
+
+### TP-56 — Independent domain commit decisions
+
+One generated output can produce different terminal results for text delivery, Memory, Relationship, Affect, Belief, Consent, Tool use, and World action without acceptance in one domain promoting authority in another.
+
+### TP-57 — Probability-domain non-equivalence
+
+A numeric probability, confidence, uncertainty, intensity, or score has meaning only within its identified schema and publication; transferring it to another domain requires an explicit versioned conversion rule and authority.
+
+### TP-58 — Non-diegetic guard authority
+
+Narrative roles and generated claims cannot create or modify system authority, while authenticated configuration, publication, capability, and domain resolvers remain effective regardless of fictional framing.
+
+### TP-59 — Bounded continuity under evaluator failure
+
+An evaluator failure can reduce capabilities, writes, disclosure, or effects without necessarily eliminating a prevalidated Character response delivered through a separately authorized fallback Egress path, and the fallback remains recorded and revisioned.
+
+### TP-60 — Egress authorization over resolved destination output
+
+The final Channel-specific representation, including resolved assets, audience, metadata, and transformed text, receives an authorization decision distinct from input screening, generation success, and durable-state acceptance.
 
 ---
 
