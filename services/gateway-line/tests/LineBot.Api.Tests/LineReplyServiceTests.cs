@@ -21,8 +21,7 @@ public class LineReplyServiceTests
             TestSupport.BuildConfiguration(new Dictionary<string, string?> { ["Line:ChannelAccessToken"] = "token" }),
             TestSupport.Logger<LineReplyService>());
 
-        using var cts = new CancellationTokenSource();
-        var result = await service.SendReplyAsync("reply-token", new List<string> { "hello" }, "webhook-1", false, cts.Token);
+        var result = await service.SendReplyAsync("reply-token", new List<string> { "hello" }, "webhook-1", false, CancellationToken.None);
 
         Assert.True(result);
         Assert.NotNull(handler.LastRequest);
@@ -32,9 +31,6 @@ public class LineReplyServiceTests
         Assert.Equal("token", handler.LastRequest.Headers.Authorization!.Parameter);
         Assert.Equal("application/json", handler.LastRequest.Content!.Headers.ContentType!.MediaType);
         Assert.Equal("utf-8", handler.LastRequest.Content.Headers.ContentType!.CharSet!.ToLowerInvariant());
-        Assert.True(handler.LastCancellationToken.CanBeCanceled);
-        Assert.False(handler.LastCancellationToken.IsCancellationRequested);
-
         var payload = await handler.LastRequest.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(payload);
         Assert.Equal("reply-token", doc.RootElement.GetProperty("replyToken").GetString());
@@ -43,6 +39,41 @@ public class LineReplyServiceTests
         var message = messages[0];
         Assert.Equal("text", message.GetProperty("type").GetString());
         Assert.Equal("hello", message.GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task SendReplyAsync_PropagatesCallerCancellationToHttpHandler()
+    {
+        var handlerStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new StubHttpMessageHandler(async (_, cancellationToken) =>
+        {
+            handlerStarted.TrySetResult(cancellationToken);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        var service = new LineReplyService(
+            new HttpClient(handler),
+            TestSupport.BuildConfiguration(new Dictionary<string, string?> { ["Line:ChannelAccessToken"] = "token" }),
+            TestSupport.Logger<LineReplyService>());
+
+        using var cts = new CancellationTokenSource();
+        var sendTask = service.SendReplyAsync(
+            "reply-token",
+            new List<string> { "hello" },
+            "webhook-1",
+            false,
+            cts.Token);
+
+        var handlerCancellationToken = await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(handlerCancellationToken.IsCancellationRequested);
+
+        cts.Cancel();
+
+        var result = await sendTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(result);
+        Assert.True(handlerCancellationToken.IsCancellationRequested);
     }
 
     [Fact]
