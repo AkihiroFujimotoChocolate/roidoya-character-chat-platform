@@ -26,8 +26,7 @@ public class EchoChatService : IChatService
                 return Task.FromResult(new ChatServiceResult
                 {
                     Status = "ok",
-                    Messages = new List<string> { _configuration["Chat:Fallbacks:Default"] ?? "The service is temporarily unavailable." },
-                    FallbackUsed = true
+                    Messages = new List<string> { _configuration["Chat:Fallbacks:Default"] ?? "The service is temporarily unavailable." }
                 });
             }
 
@@ -40,8 +39,7 @@ public class EchoChatService : IChatService
             return Task.FromResult(new ChatServiceResult
             {
                 Status = "ok",
-                Messages = messages,
-                FallbackUsed = false
+                Messages = messages
             });
         }
         catch (Exception ex)
@@ -50,13 +48,7 @@ public class EchoChatService : IChatService
             return Task.FromResult(new ChatServiceResult
             {
                 Status = "error",
-                Messages = new List<string> { _configuration["Chat:Fallbacks:Default"] ?? "The service is temporarily unavailable." },
-                FallbackUsed = true,
-                Error = new ChatError
-                {
-                    Code = "internal_error",
-                    Message = ex.Message
-                }
+                Messages = new List<string> { _configuration["Chat:Fallbacks:Default"] ?? "The service is temporarily unavailable." }
             });
         }
     }

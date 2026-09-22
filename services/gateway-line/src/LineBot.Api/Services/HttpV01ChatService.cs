@@ -35,7 +35,7 @@ public class HttpV01ChatService : IChatService
             _logger.LogInformation("Sending HTTP chat request to {Url}, RequestId={RequestId}, TimeoutSeconds={TimeoutSeconds}", 
                 url, request.RequestId ?? "unknown", timeoutSeconds);
 
-            using var httpResponse = await _httpClient.SendAsync(httpRequest, combinedCts.Token);
+            var httpResponse = await _httpClient.SendAsync(httpRequest, combinedCts.Token);
             var responseContent = await httpResponse.Content.ReadAsStringAsync(combinedCts.Token);
 
             _logger.LogInformation("Received HTTP chat response, Status={StatusCode}, ContentLength={ContentLength}, RequestId={RequestId}", 
@@ -45,7 +45,7 @@ public class HttpV01ChatService : IChatService
             {
                 _logger.LogWarning("HTTP chat service returned error status {StatusCode}, RequestId={RequestId}", 
                     httpResponse.StatusCode, request.RequestId ?? "unknown");
-                return CreateProviderErrorResponse(request.RequestId, "http_error", $"HTTP {(int)httpResponse.StatusCode}");
+                return CreateProviderErrorResponse();
             }
 
             var chatResponse = JsonSerializer.Deserialize<ChatV01WireResponse>(responseContent, new JsonSerializerOptions
@@ -56,7 +56,7 @@ public class HttpV01ChatService : IChatService
             if (chatResponse == null)
             {
                 _logger.LogWarning("Failed to deserialize chat response, RequestId={RequestId}", request.RequestId ?? "unknown");
-                return CreateProviderErrorResponse(request.RequestId, "invalid_response", "Failed to parse response");
+                return CreateProviderErrorResponse();
             }
 
             // Handle provider error or content filtered responses
@@ -69,33 +69,15 @@ public class HttpV01ChatService : IChatService
 
                 return new ChatServiceResult
                 {
-                    RequestId = chatResponse.RequestId,
                     Status = chatResponse.Status,
-                    Messages = new List<string> { fallbackText },
-                    FallbackUsed = true,
-                    Error = chatResponse.Error is null
-                        ? null
-                        : new ChatError
-                        {
-                            Code = chatResponse.Error.Code,
-                            Message = chatResponse.Error.Message
-                        }
+                    Messages = new List<string> { fallbackText }
                 };
             }
 
             return new ChatServiceResult
             {
-                RequestId = chatResponse.RequestId,
                 Status = chatResponse.Status,
-                Messages = chatResponse.Messages ?? new List<string>(),
-                FallbackUsed = chatResponse.FallbackUsed,
-                Error = chatResponse.Error is null
-                    ? null
-                    : new ChatError
-                    {
-                        Code = chatResponse.Error.Code,
-                        Message = chatResponse.Error.Message
-                    }
+                Messages = chatResponse.Messages!
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -109,21 +91,14 @@ public class HttpV01ChatService : IChatService
             var fallbackText = GetFallbackText("timeout");
             return new ChatServiceResult
             {
-                RequestId = request.RequestId,
                 Status = "provider_error",
-                Messages = new List<string> { fallbackText },
-                FallbackUsed = true,
-                Error = new ChatError
-                {
-                    Code = "timeout",
-                    Message = "Request timed out"
-                }
+                Messages = new List<string> { fallbackText }
             };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in HTTP chat service, RequestId={RequestId}", request.RequestId ?? "unknown");
-            return CreateProviderErrorResponse(request.RequestId, "internal_error", ex.Message);
+            return CreateProviderErrorResponse();
         }
     }
 
@@ -187,7 +162,7 @@ public class HttpV01ChatService : IChatService
             message = new 
             { 
                 text = request.MessageText,
-                language = request.MessageLanguage
+                language = (string?)null
             },
             limits = new
             {
@@ -231,10 +206,7 @@ public class HttpV01ChatService : IChatService
                 {
                     foreach (var header in additionalHeaders)
                     {
-                        if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
-                        {
-                            httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                        }
+                        httpRequest.Headers.Add(header.Key, header.Value);
                     }
                 }
             }
@@ -247,39 +219,29 @@ public class HttpV01ChatService : IChatService
         return httpRequest;
     }
 
-    private ChatServiceResult CreateProviderErrorResponse(string? requestId, string errorCode, string errorMessage)
+    private ChatServiceResult CreateProviderErrorResponse()
     {
         var fallbackText = GetFallbackText("default");
         return new ChatServiceResult
         {
-            RequestId = requestId,
             Status = "provider_error",
-            Messages = new List<string> { fallbackText },
-            FallbackUsed = true,
-            Error = new ChatError
-            {
-                Code = errorCode,
-                Message = errorMessage
-            }
+            Messages = new List<string> { fallbackText }
         };
     }
 
     private string GetFallbackText(string errorType)
     {
-        var defaultFallback = GetConfiguredFallback("Chat:Fallbacks:Default") ?? "The service is temporarily unavailable.";
-
         return errorType.ToLowerInvariant() switch
         {
-            "timeout" => GetConfiguredFallback("Chat:Fallbacks:Timeout") ?? defaultFallback,
-            "content_filtered" => GetConfiguredFallback("Chat:Fallbacks:ContentFiltered") ?? defaultFallback,
-            _ => defaultFallback
+            "timeout" => _configuration["Chat:Fallbacks:Timeout"] ?? 
+                        _configuration["Chat:Fallbacks:Default"] ?? 
+                        "The service is temporarily unavailable.",
+            "content_filtered" => _configuration["Chat:Fallbacks:ContentFiltered"] ?? 
+                                 _configuration["Chat:Fallbacks:Default"] ?? 
+                                 "The service is temporarily unavailable.",
+            _ => _configuration["Chat:Fallbacks:Default"] ?? 
+                "The service is temporarily unavailable."
         };
-    }
-
-    private string? GetConfiguredFallback(string key)
-    {
-        var value = _configuration[key];
-        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
     private void ValidateConfiguredApiVersion()
@@ -302,17 +264,5 @@ public class HttpV01ChatService : IChatService
 
         [JsonPropertyName("messages")]
         public List<string>? Messages { get; set; }
-
-        [JsonPropertyName("fallback_used")]
-        public bool FallbackUsed { get; set; }
-
-        [JsonPropertyName("error")]
-        public ChatV01WireError? Error { get; set; }
-    }
-
-    private sealed class ChatV01WireError
-    {
-        public string Code { get; set; } = string.Empty;
-        public string Message { get; set; } = string.Empty;
     }
 }

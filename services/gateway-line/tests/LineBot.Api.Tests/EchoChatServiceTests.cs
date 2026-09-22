@@ -22,7 +22,6 @@ public class EchoChatServiceTests
         });
 
         Assert.Equal("ok", result.Status);
-        Assert.True(result.FallbackUsed);
         Assert.Equal(new[] { "fallback" }, result.Messages);
     }
 
@@ -39,7 +38,6 @@ public class EchoChatServiceTests
         });
 
         Assert.Equal("ok", result.Status);
-        Assert.False(result.FallbackUsed);
         Assert.Equal(new[] { "1234", "5678", "90" }, result.Messages);
     }
 }

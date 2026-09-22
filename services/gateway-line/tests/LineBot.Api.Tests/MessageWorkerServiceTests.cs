@@ -41,6 +41,7 @@ public class MessageWorkerServiceTests
 
         await worker.StartAsync(CancellationToken.None);
         await chat.WaitForInvocationAsync(TimeSpan.FromSeconds(2));
+        await reply.WaitForInvocationAsync(TimeSpan.FromSeconds(2));
         await worker.StopAsync(CancellationToken.None);
 
         Assert.NotNull(chat.LastRequest);
@@ -48,6 +49,15 @@ public class MessageWorkerServiceTests
         Assert.Equal("user-1", chat.LastRequest.ConversationId);
         Assert.Equal("user-1", chat.LastRequest.AuthorUserId);
         Assert.Null(typeof(ChatServiceRequest).GetProperty("ApiVersion"));
+        Assert.Null(typeof(ChatServiceRequest).GetProperty("MessageLanguage"));
+        Assert.Null(typeof(ChatServiceResult).GetProperty("RequestId"));
+        Assert.Null(typeof(ChatServiceResult).GetProperty("FallbackUsed"));
+        Assert.Null(typeof(ChatServiceResult).GetProperty("Error"));
+
+        Assert.Equal("token-1", reply.LastReplyToken);
         Assert.Equal(new[] { "reply" }, reply.LastMessages);
+        Assert.Equal("event-1", reply.LastWebhookEventId);
+        Assert.False(reply.LastIsRedelivery);
+        Assert.True(reply.LastCancellationToken.CanBeCanceled);
     }
 }

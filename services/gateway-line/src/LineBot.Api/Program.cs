@@ -219,3 +219,7 @@ async Task ProcessWebhookEvent(WebhookEvent webhookEvent, ILocalQueueService que
 }
 
 app.Run();
+
+public partial class Program
+{
+}

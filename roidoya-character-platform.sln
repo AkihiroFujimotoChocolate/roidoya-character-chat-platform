@@ -18,37 +18,17 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
-		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
-		Release|x64 = Release|x64
-		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Debug|x64.Build.0 = Debug|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Debug|x86.Build.0 = Debug|Any CPU
 		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Release|x64.ActiveCfg = Release|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Release|x64.Build.0 = Release|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Release|x86.ActiveCfg = Release|Any CPU
-		{728A1CF4-576E-5F08-E316-DCF59BBE354A}.Release|x86.Build.0 = Release|Any CPU
 		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Debug|x64.Build.0 = Debug|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Debug|x86.Build.0 = Debug|Any CPU
 		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Release|x64.ActiveCfg = Release|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Release|x64.Build.0 = Release|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Release|x86.ActiveCfg = Release|Any CPU
-		{4FBA8E26-FE6E-432F-A3BE-ECA77ECC239E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

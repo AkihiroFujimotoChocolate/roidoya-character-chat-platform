@@ -47,8 +47,7 @@ internal sealed class CapturingChatService : LineBot.Api.Services.IChatService
         return Task.FromResult(new LineBot.Api.Models.ChatServiceResult
         {
             Status = "ok",
-            Messages = new List<string> { "reply" },
-            FallbackUsed = false
+            Messages = new List<string> { "reply" }
         });
     }
 
@@ -92,11 +91,27 @@ internal sealed class StubIdempotencyService : LineBot.Api.Services.IIdempotency
 
 internal sealed class CapturingLineReplyService : LineBot.Api.Services.ILineReplyService
 {
+    private readonly TaskCompletionSource<bool> _invoked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public string? LastReplyToken { get; private set; }
     public List<string>? LastMessages { get; private set; }
+    public string? LastWebhookEventId { get; private set; }
+    public bool? LastIsRedelivery { get; private set; }
+    public CancellationToken LastCancellationToken { get; private set; }
 
     public Task<bool> SendReplyAsync(string replyToken, List<string> messages, string webhookEventId, bool isRedelivery, CancellationToken cancellationToken = default)
     {
+        LastReplyToken = replyToken;
         LastMessages = messages;
+        LastWebhookEventId = webhookEventId;
+        LastIsRedelivery = isRedelivery;
+        LastCancellationToken = cancellationToken;
+        _invoked.TrySetResult(true);
         return Task.FromResult(true);
+    }
+
+    public Task WaitForInvocationAsync(TimeSpan timeout)
+    {
+        return _invoked.Task.WaitAsync(timeout);
     }
 }
