@@ -26,10 +26,12 @@ internal sealed class StubHttpMessageHandler : HttpMessageHandler
     }
 
     public HttpRequestMessage? LastRequest { get; private set; }
+    public CancellationToken LastCancellationToken { get; private set; }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         LastRequest = request;
+        LastCancellationToken = cancellationToken;
         return await _handler(request, cancellationToken);
     }
 }
@@ -39,10 +41,12 @@ internal sealed class CapturingChatService : LineBot.Api.Services.IChatService
     private readonly TaskCompletionSource<bool> _invoked = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public LineBot.Api.Models.ChatServiceRequest? LastRequest { get; private set; }
+    public CancellationToken LastCancellationToken { get; private set; }
 
     public Task<LineBot.Api.Models.ChatServiceResult> GenerateReplyAsync(LineBot.Api.Models.ChatServiceRequest request, CancellationToken cancellationToken = default)
     {
         LastRequest = request;
+        LastCancellationToken = cancellationToken;
         _invoked.TrySetResult(true);
         return Task.FromResult(new LineBot.Api.Models.ChatServiceResult
         {

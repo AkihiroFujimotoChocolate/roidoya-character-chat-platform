@@ -33,8 +33,11 @@ public class HttpV01ChatServiceTests
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
         Assert.Equal("https://example.com/chat/v0.1/generate-replies", handler.LastRequest.RequestUri!.ToString());
         Assert.Equal("0.1", handler.LastRequest.Headers.GetValues("X-Chat-Api-Version").Single());
+        Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization!.Scheme);
+        Assert.Equal("test-api-key", handler.LastRequest.Headers.Authorization.Parameter);
+        Assert.Equal("application/json", handler.LastRequest.Content!.Headers.ContentType!.MediaType);
 
-        var payload = await handler.LastRequest.Content!.ReadAsStringAsync();
+        var payload = await handler.LastRequest.Content.ReadAsStringAsync();
         using var jsonDoc = JsonDocument.Parse(payload);
         var root = jsonDoc.RootElement;
         Assert.Equal("req-1", root.GetProperty("request_id").GetString());
@@ -247,6 +250,26 @@ public class HttpV01ChatServiceTests
     }
 
     [Fact]
+    public async Task GenerateReplyAsync_UsesRelativeEndpointOverrideWithBaseUrlPrecedenceOverAppBaseUrl()
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"status\":\"ok\",\"messages\":[\"hello\"]}", Encoding.UTF8, "application/json")
+        }));
+        var service = CreateService(handler, new Dictionary<string, string?>
+        {
+            ["Chat:Http:Endpoint"] = "/chat/explicit-relative-endpoint",
+            ["Chat:Http:EndpointTemplate"] = "/chat/{version}/template-ignored",
+            ["Chat:Http:BaseUrl"] = "https://base-priority.example",
+            ["App:BaseUrl"] = "https://app-fallback.example"
+        });
+
+        await service.GenerateReplyAsync(new ChatServiceRequest { MessageText = "hello", ConversationId = "c", AuthorUserId = "a" });
+
+        Assert.Equal("https://base-priority.example/chat/explicit-relative-endpoint", handler.LastRequest!.RequestUri!.ToString());
+    }
+
+    [Fact]
     public async Task GenerateReplyAsync_UsesLiteralTemplateWhenVersionPlaceholderMissing()
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -350,6 +373,7 @@ public class HttpV01ChatServiceTests
             ["Chat:Http:EndpointTemplate"] = "/chat/{version}/generate-replies",
             ["Chat:Http:Endpoint"] = "",
             ["Chat:Http:VersionHeaderName"] = "X-Chat-Api-Version",
+            ["Chat:Http:ApiKey"] = "test-api-key",
             ["Chat:Fallbacks:Default"] = "default-fallback",
             ["Chat:Fallbacks:ContentFiltered"] = "",
             ["Chat:Fallbacks:Timeout"] = ""

@@ -18,7 +18,7 @@ public class MessageWorkerServiceTests
             ReplyToken = "token-1",
             UserKey = "user-1",
             MessageText = "hello",
-            IsRedelivery = false
+            IsRedelivery = true
         });
 
         var chat = new CapturingChatService();
@@ -57,7 +57,9 @@ public class MessageWorkerServiceTests
         Assert.Equal("token-1", reply.LastReplyToken);
         Assert.Equal(new[] { "reply" }, reply.LastMessages);
         Assert.Equal("event-1", reply.LastWebhookEventId);
-        Assert.False(reply.LastIsRedelivery);
-        Assert.True(reply.LastCancellationToken.CanBeCanceled);
+        Assert.True(reply.LastIsRedelivery);
+        Assert.Equal(chat.LastCancellationToken, reply.LastCancellationToken);
+        Assert.True(chat.LastCancellationToken.CanBeCanceled);
+        Assert.True(chat.LastCancellationToken.IsCancellationRequested);
     }
 }

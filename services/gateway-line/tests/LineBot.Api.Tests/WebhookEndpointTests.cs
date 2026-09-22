@@ -41,7 +41,7 @@ public class WebhookEndpointTests
         Assert.Equal("reply-token-1", item.ReplyToken);
         Assert.Equal("user-U1234567890", item.UserKey);
         Assert.Equal("hello from line", item.MessageText);
-        Assert.False(item.IsRedelivery);
+        Assert.True(item.IsRedelivery);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class WebhookEndpointTests
                      "mode": "active",
                      "timestamp": 1716100000000,
                      "webhookEventId": "webhook-event-1",
-                     "deliveryContext": { "isRedelivery": false },
+                     "deliveryContext": { "isRedelivery": true },
                      "source": {
                        "type": "user",
                        "userId": "U1234567890"

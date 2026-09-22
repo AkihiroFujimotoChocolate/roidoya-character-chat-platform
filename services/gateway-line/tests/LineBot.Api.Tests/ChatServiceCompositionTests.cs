@@ -1,62 +1,58 @@
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Services;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace LineBot.Api.Tests;
 
 public class ChatServiceCompositionTests
 {
     [Fact]
-    public void ModeHttp_ResolvesHttpV01ChatService()
+    public async Task ModeHttp_ProductionCompositionResolvesHttpV01ChatService()
     {
-        using var provider = BuildServiceProvider("Http");
+        await using var factory = CreateFactory("Http");
+        using var scope = factory.Services.CreateScope();
 
-        var service = provider.GetRequiredService<IChatService>();
+        var service = scope.ServiceProvider.GetRequiredService<IChatService>();
 
         Assert.IsType<HttpV01ChatService>(service);
     }
 
     [Fact]
-    public void ModeEcho_ResolvesEchoChatService()
+    public async Task ModeEcho_ProductionCompositionResolvesEchoChatService()
     {
-        using var provider = BuildServiceProvider("Echo");
+        await using var factory = CreateFactory("Echo");
+        using var scope = factory.Services.CreateScope();
 
-        var service = provider.GetRequiredService<IChatService>();
+        var service = scope.ServiceProvider.GetRequiredService<IChatService>();
 
         Assert.IsType<EchoChatService>(service);
     }
 
-    private static ServiceProvider BuildServiceProvider(string mode)
+    private static WebApplicationFactory<Program> CreateFactory(string mode)
     {
-        var services = new ServiceCollection();
-        var config = TestSupport.BuildConfiguration(new Dictionary<string, string?>
-        {
-            ["Chat:Mode"] = mode,
-            ["Chat:ApiVersion"] = "0.1",
-            ["Chat:Http:BaseUrl"] = "https://example.com",
-            ["Line:ChannelAccessToken"] = "token"
-        });
-
-        services.AddSingleton<IConfiguration>(config);
-        services.AddLogging();
-        services.AddHttpClient<HttpV01ChatService>();
-        services.AddScoped<EchoChatService>();
-        services.AddScoped<HttpV01ChatService>();
-
-        services.AddScoped<IChatService>(sp =>
-        {
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var chatMode = configuration.GetValue<string>("Chat:Mode", "Echo");
-
-            return (chatMode ?? "Echo").ToLowerInvariant() switch
+        return new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
             {
-                "http" => (IChatService)sp.GetRequiredService<HttpV01ChatService>(),
-                "echo" => sp.GetRequiredService<EchoChatService>(),
-                _ => throw new InvalidOperationException($"Unsupported Chat:Mode: {chatMode}")
-            };
-        });
+                builder.ConfigureAppConfiguration((_, configBuilder) =>
+                {
+                    configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Chat:Mode"] = mode,
+                        ["Chat:ApiVersion"] = "0.1",
+                        ["Chat:Http:BaseUrl"] = "https://example.com",
+                        ["Line:ChannelSecret"] = "test-secret",
+                        ["Line:ChannelAccessToken"] = "test-token"
+                    });
+                });
 
-        return services.BuildServiceProvider();
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IHostedService>();
+                });
+            });
     }
 }

@@ -21,15 +21,21 @@ public class LineReplyServiceTests
             TestSupport.BuildConfiguration(new Dictionary<string, string?> { ["Line:ChannelAccessToken"] = "token" }),
             TestSupport.Logger<LineReplyService>());
 
-        var result = await service.SendReplyAsync("reply-token", new List<string> { "hello" }, "webhook-1", false, CancellationToken.None);
+        using var cts = new CancellationTokenSource();
+        var result = await service.SendReplyAsync("reply-token", new List<string> { "hello" }, "webhook-1", false, cts.Token);
 
         Assert.True(result);
         Assert.NotNull(handler.LastRequest);
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
         Assert.Equal("https://api.line.me/v2/bot/message/reply", handler.LastRequest.RequestUri!.ToString());
+        Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization!.Scheme);
         Assert.Equal("token", handler.LastRequest.Headers.Authorization!.Parameter);
+        Assert.Equal("application/json", handler.LastRequest.Content!.Headers.ContentType!.MediaType);
+        Assert.Equal("utf-8", handler.LastRequest.Content.Headers.ContentType!.CharSet!.ToLowerInvariant());
+        Assert.True(handler.LastCancellationToken.CanBeCanceled);
+        Assert.False(handler.LastCancellationToken.IsCancellationRequested);
 
-        var payload = await handler.LastRequest.Content!.ReadAsStringAsync();
+        var payload = await handler.LastRequest.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(payload);
         Assert.Equal("reply-token", doc.RootElement.GetProperty("replyToken").GetString());
         var messages = doc.RootElement.GetProperty("messages");
