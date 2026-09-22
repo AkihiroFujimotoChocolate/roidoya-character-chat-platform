@@ -31,49 +31,18 @@ public class QueueItem
     public DateTime QueuedAt { get; set; } = DateTime.UtcNow;
 }
 
-public class ChatRequest
+public class ChatServiceRequest
 {
     public string? RequestId { get; set; }
-    public string ApiVersion { get; set; } = "0.1";
-    public ChatMessage Message { get; set; } = new();
-    public ChatLimits Limits { get; set; } = new();
-    public ChatConversation Conversation { get; set; } = new();
-    public ChatAuthor Author { get; set; } = new();
-}
-
-public class ChatMessage
-{
-    public string Text { get; set; } = string.Empty;
-    public string? Language { get; set; }
-}
-
-public class ChatLimits
-{
+    public string MessageText { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 20;
     public int MaxCharsPerMessage { get; set; } = 1000;
+    public string ConversationId { get; set; } = string.Empty;
+    public string AuthorUserId { get; set; } = string.Empty;
 }
 
-public class ChatConversation
+public class ChatServiceResult
 {
-    public string Id { get; set; } = string.Empty;
-}
-
-public class ChatAuthor
-{
-    public string UserId { get; set; } = string.Empty;
-}
-
-public class ChatResponse
-{
-    public string? RequestId { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<string> Messages { get; set; } = new();
-    public bool FallbackUsed { get; set; }
-    public ChatError? Error { get; set; }
-}
-
-public class ChatError
-{
-    public string Code { get; set; } = string.Empty;
-    public string Message { get; set; } = string.Empty;
 }

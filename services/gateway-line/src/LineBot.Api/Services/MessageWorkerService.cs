@@ -86,18 +86,14 @@ public class MessageWorkerService : BackgroundService
         try
         {
             // Generate chat response
-            var chatRequest = new ChatRequest
+            var chatRequest = new ChatServiceRequest
             {
                 RequestId = Guid.NewGuid().ToString(),
-                ApiVersion = "0.1",
-                Message = new ChatMessage { Text = queueItem.MessageText },
-                Limits = new ChatLimits 
-                { 
-                    TimeoutSeconds = 20, 
-                    MaxCharsPerMessage = 1000 
-                },
-                Conversation = new ChatConversation { Id = queueItem.UserKey },
-                Author = new ChatAuthor { UserId = queueItem.UserKey }
+                MessageText = queueItem.MessageText,
+                TimeoutSeconds = 20,
+                MaxCharsPerMessage = 1000,
+                ConversationId = queueItem.UserKey,
+                AuthorUserId = queueItem.UserKey
             };
 
             var chatResponse = await chatService.GenerateReplyAsync(chatRequest, cancellationToken);
