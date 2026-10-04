@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
 **Status:** Public Edition\
-**Edition:** #6\
-**Publication date:** 2026-09-19 (Asia/Tokyo)\
+**Edition:** #7\
+**Publication date:** 2026-10-04 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
@@ -11,9 +11,9 @@
 
 ## Abstract
 
-Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, authorized creator/operator intervention without depending on unconstrained model autonomy, and independent Character-integrity evaluation that separates typed evidence, policy decisions, durable-state commits, and final egress from Character generation. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, typed probabilistic decision models, and model APIs.
+Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, authorized creator/operator intervention without depending on unconstrained model autonomy, and independent Character-integrity evaluation that separates typed evidence, policy decisions, durable-state commits, and final egress from Character generation. It additionally specifies contract-scoped build selection, artifact exclusion verification, and developer-provided environment extensions in independently selected programming languages with explicit conformance and authority boundaries. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, typed probabilistic decision models, and model APIs.
 
-**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; authoritative world state; observer-scoped projection; character belief; action intent; action resolution; world event; creator intervention; operator intervention; bounded autonomy; character integrity; independent guard; typed judgment; trajectory-aware evaluation; state commit guard; egress guardian; probability-domain separation; live-chat character system; derived-state migration; execution provenance
+**Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; authoritative world state; observer-scoped projection; character belief; action intent; action resolution; world event; creator intervention; operator intervention; bounded autonomy; character integrity; independent guard; typed judgment; trajectory-aware evaluation; state commit guard; egress guardian; probability-domain separation; live-chat character system; derived-state migration; execution provenance; contract-scoped build; resolved composition; artifact exclusion verification; language-neutral extension; extension conformance; environment binding
 
 > This document describes implementable technical architectures and embodiments for building and operating character-chat services with RCCP. It includes both implemented and not-yet-implemented arrangements. A described embodiment does not imply that it is currently implemented, selected as the only supported architecture, or claimed to be novel.
 
@@ -43,6 +43,8 @@ This disclosure focuses on technical arrangements for:
 - evaluating multi-turn trajectories, reformulations, speaker or narrative-role changes, and indirect paths without treating a single accepted message as authorization for later state or effects;
 - separating probabilistic evidence from affect transition rules, committed state, expression, user-account action, consent, and world-fact authority;
 - preserving stable contracts while allowing implementations and infrastructure to change;
+- selecting contract-specific implementations at build time and verifying the absence of unselected implementation code from declared artifact surfaces;
+- admitting developer-provided environment capabilities through language-appropriate package or typed transport contracts while preserving domain authority and conformance evidence;
 - maintaining correctness in horizontally scaled or multi-instance deployments;
 - controlling duplicate processing, concurrency, backlog, rate limits, and external-provider failures;
 - allowing content creators to modify character-specific experience flows without requiring infrastructure changes;
@@ -1262,7 +1264,7 @@ The following alternatives are specifically disclosed as implementable choices. 
 - per-request routing;
 - fallback chain;
 - ensemble/multiple model calls;
-- local/self-hosted model;
+- a self-hosted inference endpoint selected independently of model developer and weight-distribution terms;
 - external managed provider;
 - provider-specific optimization hidden behind a stable capability contract.
 
@@ -1307,7 +1309,7 @@ A Channel Adapter runs multiple replicas, stores idempotency in shared persisten
 
 ### Combination E — Provider-independent character generation
 
-Orchestration builds a channel-neutral/model-neutral interaction context and invokes a Model Service. The Model Service converts it to OpenAI-, Anthropic-, Gemini-, local-model-, or other provider-specific requests and converts responses back to a stable output contract.
+Orchestration builds a channel-neutral/model-neutral interaction context and invokes a Model Service. The Model Service converts it to requests for OpenAI, Anthropic, Gemini, another provider-hosted inference API, or a self-hosted inference endpoint, and converts responses back to a stable output contract.
 
 ### Combination F — Tool-enabled character with controlled side effects
 
@@ -2166,7 +2168,7 @@ rccp.emit_output
 
 Workers implementing those tasks call stable RCCP Core Service contracts. The Conductor server coordinates scheduling, retries, waits, timeouts, and flow control, while workers retain policy enforcement at the RCCP boundary.
 
-Built-in HTTP or AI-oriented tasks can be used in another embodiment, but direct model-provider or tool credentials should still be mediated by publication policy and operator-controlled configuration when RCCP requires provider independence or restricted creator capabilities. A workflow definition published by a creator can therefore be transformed before registration, replacing generic HTTP/model nodes with approved RCCP task references.
+Built-in HTTP or model-invocation tasks can be used in another embodiment, but direct model-provider or tool credentials should still be mediated by publication policy and operator-controlled configuration when RCCP requires provider independence or restricted creator capabilities. A workflow definition published by a creator can therefore be transformed before registration, replacing generic HTTP/model nodes with approved RCCP task references.
 
 Conductor's retry/restart/rerun facilities do not by themselves make externally visible effects safe to repeat. RCCP task workers still apply idempotency keys, transaction/outbox rules, or the effect journal described elsewhere in this document.
 
@@ -2973,7 +2975,7 @@ The following combinations explicitly connect the newly described embodiments. T
 4. Authoritative RCCP memory/relationship/world state remains in Core Services.
 5. The outer durable engine records the segment result and schedules future waits/events.
 
-This separates fine-grained AI conversational branching from long-lived durable process guarantees.
+This separates fine-grained conversational branching from long-lived durable process guarantees.
 
 ### Combination AF — public livestream character with shared and per-user state
 
@@ -3029,7 +3031,7 @@ The architecture can be understood as several implementation families. Each fami
 | public-room interaction | broadcast chats mix many actors and a shared room context | explicit topology, room/shared state, per-actor private state, routing/moderation workflow | public-channel behavior can combine shared scene context with private continuity without conflating all participants |
 | online replacement of derived data | embeddings/indexes/summaries become obsolete while a service remains live | versioned projections, dual read/write, backfill, shadow/canary validation, atomic switch | derived-state implementation can be migrated without globally stopping Channel Adapters or changing stable interaction contracts |
 | portable publication | character content otherwise embeds deployment-specific credentials/endpoints | immutable character package plus logical capability bindings | the same reviewed content package can move between preview/production/deployments while secrets and provider bindings remain environment-specific |
-| nested orchestration | fine-grained conversational branching and long-lived durable process semantics have different execution requirements | conversational graph runtime inside a durable workflow activity/segment | an AI-oriented graph can evolve independently while an outer runtime owns durable waits, retries, and long-lived process identity |
+| nested orchestration | fine-grained conversational branching and long-lived durable process semantics have different execution requirements | conversational graph runtime inside a durable workflow activity/segment | a conversational graph can evolve independently while an outer runtime owns durable waits, retries, and long-lived process identity |
 
 The technical effect of a family does not depend on one named product unless an embodiment explicitly requires that product's interface. Equivalent primitives can implement the same family if they preserve the stated state ownership, ordering, correlation, and failure semantics.
 
@@ -3049,7 +3051,7 @@ One implementation uses:
 - PostgreSQL as an authoritative application store;
 - separately replaceable Character, Memory, State, Model, Search, and Tool modules/services;
 - an outbox dispatcher;
-- an OpenAI, Claude, Gemini, local-model, or other provider adapter selected by Model Service policy.
+- an adapter for OpenAI, Claude, Gemini, another provider-hosted inference API, or a self-hosted inference endpoint, selected by Model Service policy.
 
 The durable queue can be Azure Service Bus with sessions, SQS FIFO, another broker with partition/group ordering, or a queue plus an explicit RCCP serialization mechanism. The durable workflow can be Temporal, Durable Functions, Dapr Workflow, Kestra, Conductor, or another runtime with equivalent wait/retry/recovery semantics.
 
@@ -3581,7 +3583,7 @@ A later execution can compare manifests to identify whether changed behavior res
 
 ### TP-09 — Nested conversational graph and durable process
 
-A long-lived durable workflow owns process identity, durable waits, retries, external events, and scheduled continuation. A workflow activity or segment invokes an AI/conversational graph runtime for a bounded reasoning/conversation segment. The graph may checkpoint within the segment, but authoritative long-term character memory/relationship/world state is accessed through RCCP Core Services. The durable workflow records the graph result and can later resume another segment.
+A long-lived durable workflow owns process identity, durable waits, retries, external events, and scheduled continuation. A workflow activity or segment invokes a conversational graph runtime for a bounded reasoning/conversation segment. The graph may checkpoint within the segment, but authoritative long-term character memory/relationship/world state is accessed through RCCP Core Services. The durable workflow records the graph result and can later resume another segment.
 
 The graph runtime and durable runtime can therefore be upgraded/replaced independently subject to stable boundaries.
 
@@ -7098,7 +7100,7 @@ Independent embodiments include:
 6. human review that emits the same evidence contract with reviewer scope and provenance;
 7. a cascade in which inexpensive evaluators screen broad traffic and a more capable evaluator handles uncertain or high-impact cases.
 
-TypeSafe AI publicly describes Jev as an early-access System One Model that accepts unstructured state and returns predefined typed probabilistic decisions, probabilities, confidence, and uncertainty rather than free-form generated strings. A deployment can connect Jev through the provider-neutral evaluator contract as one dedicated typed-decision embodiment. Product-specific claims about speed, calibration, cost, or correctness are not RCCP guarantees, and type-correct output does not establish a correct or authorized decision. The official product description is available at <https://typesafe.ai/blog/introducing-system-one-models-and-jev>.
+The official Jev announcement describes the product as an early-access System One Model that accepts unstructured state and returns predefined typed probabilistic decisions, probabilities, confidence, and uncertainty rather than free-form generated strings. A deployment can connect Jev through the provider-neutral evaluator contract as one dedicated typed-decision embodiment. Product-specific claims about speed, calibration, cost, or correctness are not RCCP guarantees, and type-correct output does not establish a correct or authorized decision. The official product description is available at <https://typesafe.ai/blog/introducing-system-one-models-and-jev>.
 
 ### 98.3 Policy Decision
 
@@ -7487,6 +7489,382 @@ An evaluator failure can reduce capabilities, writes, disclosure, or effects wit
 ### TP-60 — Egress authorization over resolved destination output
 
 The final Channel-specific representation, including resolved assets, audience, metadata, and transformed text, receives an authorization decision distinct from input screening, generation success, and durable-state acceptance.
+
+## 105. Contract-scoped build selection and reproducible composition
+
+A deployment can include selected contract implementations at build time while preserving independently evolving contracts below and beside the selected boundary. For example, changing the Gateway–Orchestration HTTP contract need not change a queue envelope, Memory operation, persistent-record schema, or Character Publication. Selection controls which version-specific implementation is built and shipped; it is separate from choosing among already included implementations at runtime.
+
+The embodiments in Sections 105–113 extend the compatibility arrangements in Section 23, language-neutral decomposition in Section 26, and environment bindings in Section 46. They do not designate a new RCCP release, supported deployment, SDK, extension registry, or implementation language. Numeric versions and configuration identifiers in the examples are illustrative. Conditional builds, service contracts, dependency resolution, and conformance testing are existing techniques; the disclosed combinations specify their application across independently versioned character-service boundaries.
+
+### 105.1 Independent version axes and ownership
+
+| Axis | Meaning | Representative owner |
+| --- | --- | --- |
+| product release | a distribution or release label | distribution publisher |
+| component implementation | executable implementation revision | component publisher |
+| boundary contract | request, response, event, and behavioral contract | contract publisher |
+| persistent schema | storage representation and migration rules | owning state service |
+| Character Publication | immutable creator content and policy references | authorized content publisher |
+| build composition | exact selected implementations and dependencies | build publisher |
+| deployment binding | actual capabilities, endpoints, identities, and operating policy | System Operator |
+| validation statement | evidence for a named artifact, configuration, and test profile | identified validator |
+
+A version on one axis does not establish a version or compatibility result on another. A contract name includes its boundary or domain, so that `chat-http:0.2` cannot accidentally select `queue-envelope:0.2`. A component can implement more than one contract version, and two different component versions can implement the same contract. The ownership table identifies responsibility; it does not grant publication or deployment permission.
+
+### 105.2 Finite catalog and selection resolution
+
+A contract catalog records immutable entries containing contract identity, schema digest, semantic requirements, compatible providers and consumers where validated, lifecycle status, source revision, and version-specific source or package references. A build request names the catalog digest and one or more selectors. Explicit-version and range-selector syntax are defined by the catalog's version grammar rather than by floating-point or lexicographic comparison.
+
+One resolver implements these steps:
+
+1. Parse each selector as a boundary-qualified expression. Reject unknown boundaries, malformed versions, unsupported operators, and unknown explicit versions.
+2. Evaluate range predicates against the finite catalog for that boundary. Comparisons within one range clause intersect; alternative clauses and explicit entries unite. Sort and deduplicate the resulting set.
+3. Reject an empty required set. A comparison endpoint not present in the catalog is a range boundary, not a request to implement that endpoint. A syntactically valid clause selecting no entry is reported distinctly from malformed syntax.
+4. Resolve mandatory implementation dependencies and client/server direction. Selection of one HTTP contract does not automatically select all implementations bearing a similar product-version label.
+5. Check constraints across the resulting dependency graph. Reject unsatisfied requirements, prohibited combinations, implicit fallback to an unselected contract, and ambiguous provider bindings.
+6. Write the exact selected set and dependency graph into a resolved composition record. Downstream build steps consume that record rather than re-evaluating ranges against a newer catalog.
+
+For example, `chat-http:0.1,0.2` selects two known contracts, while `chat-http:>=0.1 <0.3` selects matching catalog entries according to the declared grammar. Neither syntax implicitly treats `0.1.0` as `0.1`. A different grammar can define that equivalence explicitly. Explicit-only selection is an independent embodiment that avoids range expansion entirely.
+
+### 105.3 Resolved composition record
+
+```json
+{
+  "composition_id": "composition:example-standard:17",
+  "product_release": "distribution:example:5",
+  "catalog_digest": "sha256:<catalog-digest>",
+  "source_revision": "<source-commit>",
+  "selectors": {"chat-http": [">=0.1 <0.3"]},
+  "resolved_contracts": {
+    "chat-http": ["0.1", "0.2"],
+    "queue-envelope": ["1"],
+    "memory-operations": ["1"]
+  },
+  "implementations": [
+    {"id": "gateway-client", "revision": "impl:8", "roles": ["chat-http:client"]},
+    {"id": "orchestration-server", "revision": "impl:12", "roles": ["chat-http:server"]}
+  ],
+  "toolchain_lock_ref": "build-lock:17",
+  "dependency_graph_ref": "dependency-graph:17",
+  "registration_manifest_ref": "registration:17",
+  "artifact_digests": [],
+  "validation_refs": []
+}
+```
+
+The example is a pre-build plan; its empty artifact and validation lists are not completed evidence. The publisher freezes the resolved inputs, builds the artifacts, then issues a separate immutable completion record linking that plan to actual artifact digests and validation records. Artifacts can embed the plan identity, but not a digest of a completion record that includes their own hashes. Completion records remain detached to avoid a circular hash dependency. A verifier hashes the actual artifacts and checks this association; a manifest label alone does not establish code inclusion or absence.
+
+The build pins compiler, generator, dependencies, schema files, build options, and generated registration inputs when reproducibility is required. Reproducibility may mean identical bytes or a documented equivalent-input property; an implementation specifies which and records exclusions such as signatures or timestamps. Catalog changes create a new composition instead of silently changing a previously resolved build.
+
+## 106. Version-specific code exclusion and artifact verification
+
+### 106.1 Stable core and version-specific edges
+
+One implementation separates a version-independent application operation from version-specific wire representations. Version-specific modules own route names, headers, DTOs, validation, serialization, and wire-to-domain conversion. Common modules own only the operations and domain concepts that actually remain common. A dependency check prevents a common module from importing an unselected version-specific module.
+
+Independent build embodiments include:
+
+1. **Source selection:** the build generates an explicit compiler-input list and composition entry point from the resolved record. Only selected edge implementations and their permitted dependencies are included.
+2. **Package or project selection:** each contract implementation occupies a separately identifiable project or package. The composition depends only on selected packages. Building a larger development solution is separate from publishing the selected deployment artifact.
+3. **Conditional module inclusion:** compiler or build conditions include version-specific files and registration code. All conditions derive from the same resolved record; independent handwritten flags cannot disagree with the recorded selection.
+4. **Separate service distributions:** contracts are implemented by different deployable services or images. The composition records their independent artifact digests and the accepted inter-service contracts rather than forcing every version into one process.
+
+Source selection can use an explicit C# compiler item list or remove unselected files from SDK-defined compile items. A TypeScript embodiment uses selected project references and a generated composition root. TypeScript `exclude` alone does not prove absence: an import, type inclusion, reference directive, or explicit file entry can reintroduce a file. The build therefore inspects the actual compiler program and transitive dependencies. Another language can use its own compilation or packaging mechanism while satisfying the same evidence requirements.
+
+Official mechanism descriptions are available at <https://learn.microsoft.com/en-us/dotnet/core/project-sdk/overview>, <https://www.typescriptlang.org/tsconfig/#exclude>, and <https://www.typescriptlang.org/docs/handbook/project-references>.
+
+### 106.2 Absence and inclusion evidence
+
+The verifier checks at least three surfaces:
+
+- compiler inputs and generated registration, including transitive imports and project references;
+- deployable artifacts, including assemblies, emitted modules, bundled files, embedded resources, dynamic-load catalogs, and version-specific runtime dependencies;
+- reachable registrations, routes, handlers, and configured dynamic-load paths in the deployed composition.
+
+The selected set must be present and the forbidden set absent on the named surfaces. For a compile-exclusion profile, unselected source must be absent from the actual compiler inputs: later dead-code elimination is insufficient. Generated adapters, reflection, side-effect imports, copy rules, and dynamic loading cannot silently reintroduce excluded implementations. Later loading requires a new composition and extension admission before activation.
+
+The verifier uses version-module inventories, compiler reports, dependency graphs, metadata or symbol inspection, artifact file inventories, and route/handler probes as appropriate to the toolchain. A string search alone is insufficient. Dependencies shared by selected versions are permitted and recorded; they are not removed merely because an excluded version also uses them. Source archives, debug sources, or package caches distributed alongside executables have separately declared scope. An assertion that executable version code is absent is not an assertion that the source repository has been deleted.
+
+### Figure 23 — One composition record controls inclusion, registration, and verification
+
+```mermaid
+flowchart TD
+  A[Resolved composition] --> B[Selected compiler inputs]
+  A --> C[Generated registrations]
+  A --> D[Expected contract inventory]
+  B --> E[Build artifacts]
+  C --> E
+  E --> F[Artifact verifier]
+  D --> F
+  F --> G[Digest-bound validation record]
+```
+
+### 106.3 Failure and retry
+
+| Condition | Result | Recovery |
+| --- | --- | --- |
+| unknown explicit contract or empty required selection | resolution rejected | correct request or publish a new catalog |
+| selected package requires a forbidden version | composition rejected | change dependency graph; do not silently widen selection |
+| code re-enters through a transitive import or generator | verification failed | correct imports/generator and rebuild |
+| route exists without a selected implementation record | activation rejected | regenerate registration from the resolved record |
+| selected implementation is missing from the artifact | verification failed | correct packaging and rebuild |
+| artifact digest differs from the validated digest | deployment rejected | validate the actual artifact or restore the exact validated artifact |
+
+A retry uses the same resolved plan and locked inputs unless creating a new composition. Build attempts have distinct identities and cannot mutate a completed record.
+
+## 107. Composition identities, runtime selection, and content compatibility
+
+### 107.1 User-facing selection embodiments
+
+An implementation can expose one product release, individual component/contract selectors, a named composition, or a product release plus composition identifier. These are alternative user interfaces to the explicit internal record. A product label used as a composition identifier must resolve unambiguously to one immutable composition, or include a distinguishing variant identity. An operator-created override produces a new identity or clearly marked custom composition; it does not inherit a publisher's validation label.
+
+A Content Creator can see a concise distribution or capability profile while a Developer inspects contracts and dependencies and a System Operator inspects bindings and validation. The concise display resolves to the same composition record, so it is not a second independently maintained version table. A content package declares capabilities and any genuinely required schema or contract semantics; it need not claim dependence on a Gateway wire version that it does not use.
+
+### 107.2 Startup and binding checks
+
+At startup the host loads only the registration manifest bound to its artifact. A configured client contract is selected from the included set; an absent version causes an explicit configuration failure instead of fallback. An HTTP server exposes only selected routes. Path/header and unknown-path handling remain specific to the selected contract; new-version rules are not retroactively imposed on older contracts.
+
+For a remote peer, an authenticated deployment record or a protected capability exchange can state supported contracts, implementation identity, artifact digest, limits, and semantics. The binding resolver selects a mutually permitted contract, checks the required feature set and validation scope, then pins the binding revision for the interaction or workflow. Endpoint claims alone cannot establish behavioral conformance. A static operator-reviewed binding without capability negotiation is an independent embodiment.
+
+If no common contract exists or provider selection is ambiguous, resolution returns a binding error, controlled hold, or another prepublished response. A downgrade requires an explicit allowed set and a checked binding. Published content cannot expand the build's contract set or grant permission to install code.
+
+### 107.3 Updating and rolling back compositions
+
+A new artifact or binding is tested before activation. New interactions resolve the new deployment revision, while in-flight work remains on its recorded revision where required. Old consumers, server routes, workflow activities, and persistent schemas remain available until their retention and migration obligations are fulfilled. Excluding an old wire adapter does not erase old stored data or terminate durable work by implication.
+
+Rollback restores a previous artifact and binding only if their required data and workflow semantics remain valid. A forward-only schema migration can prevent a simple artifact rollback; a separately authorized migration or compensating deployment is then required. Mixed-version operation records actual client/server selections per boundary rather than assuming all components moved together.
+
+## 108. Developer-provided environment extensions and capability contracts
+
+A Developer can add a Channel Adapter, Model adapter, Core Service implementation, infrastructure adapter, orchestration binding, or renderer for an environment not implemented by the existing RCCP distribution. The extension can use a programming language chosen by its implementer when the selected transport, hosting arrangement, and behavioral contracts permit it. Section 109 defines the execution-mode compatibility requirements.
+
+### 108.1 Operations and guarantees before provider APIs
+
+An extension contract states operation identifiers, input/output schemas, error taxonomy, deadline and cancellation behavior, concurrency ownership, idempotency scope and lifetime, ordering scope, state ownership, atomicity boundary, authentication, authorization, and observability. Optional capabilities are named separately from mandatory guarantees.
+
+For example, a state port can require a conditional commit over an expected revision together with an idempotency result and output-intent record. An adapter cannot substitute several unrelated remote calls and label them atomic. It must provide the required transaction within its state owner, implement an explicitly permitted durable coordination protocol, or declare the profile unsupported. A queue port distinguishes acknowledgement from durable admission and ordering from application-level deduplication. A lease port records scope, expiry, renewal, ownership, and fencing behavior when stale-owner writes are possible.
+
+Provider SDK objects, physical storage keys, credentials, process-local transaction handles, and mutable shared objects remain inside the implementation boundary. A remote contract serializes explicit identifiers and values. It does not assume that an in-process transaction or object identity survived a process boundary. The common contract can retain provider-specific optional metadata under a governed namespace when required without making that metadata mandatory for unrelated implementations.
+
+### 108.2 Extension descriptor
+
+```json
+{
+  "extension_id": "extension:publisher.example:state-adapter",
+  "publisher_id": "publisher:example",
+  "implementation_revision": "implementation:7",
+  "artifact_digest": "sha256:<artifact-digest>",
+  "execution_mode": "remote-service",
+  "implemented_contracts": [{"id": "state-conditional-commit", "version": "1", "schema_digest": "sha256:<schema-digest>"}],
+  "requires": [{"capability": "durable-transaction-store", "profile": "conditional-write-and-effect-record"}],
+  "provides": [{"capability": "state:authoritative", "profile": "conditional-write-and-effect-record"}],
+  "configuration_schema_ref": "config-schema:state-adapter:3",
+  "credential_roles": ["state-store-access"],
+  "validation_refs": [],
+  "support_statement_ref": "support:publisher.example:state-adapter:7"
+}
+```
+
+Descriptors contain credential role names or controlled binding references, never credential values. A publisher identity and artifact integrity are checked independently of conformance. Self-declared capability, a valid signature, a matching schema, and a passing test report are distinct facts. An operator's admission decision considers all applicable evidence and required properties.
+
+### 108.3 Hosting, language, and provider selection are independent
+
+The application host, extension language, included SDK/adapter, infrastructure endpoint, model endpoint, and content package are separate axes. A cloud-hosted application can call a capability hosted on another permitted cloud. An application need not use every capability from the same provider. Such a composition requires explicit identity, network, latency, failure, data-boundary, and transaction checks; portability is not a guarantee that every combination works.
+
+An independently provided environment adapter does not establish an officially supported RCCP Production foundation. Production requirements in Sections 14–15 still apply, and validation identifies the deployment profile and responsibility owner. A self-hosted inference endpoint is a Model Service binding; it is not proof that the surrounding queue, identity, storage, recovery, or hosting foundation is supported. Development substitutes can exercise selected contracts but cannot establish properties they do not reproduce.
+
+## 109. Extension execution modes and authority containment
+
+### 109.1 In-process package embodiment
+
+A Developer implements a compatible interface in the host language or uses a specifically defined ABI/FFI bridge. The package is selected by the build composition, registered through an explicit factory, and bound to logical capabilities at deployment. Native ABI, runtime, memory ownership, thread, exception, cancellation, and dependency constraints are part of that profile. A language-neutral wire schema alone does not establish in-process binary compatibility.
+
+In-process code normally shares host privileges and cannot be treated as sandboxed merely because it implements an interface. The operator admits trusted packages and restricts configuration and credentials through the host's mechanisms. Stronger containment can require a process or network boundary. Hot-loading an unreviewed package is not implicitly authorized by a creator publication.
+
+### 109.2 Remote-service embodiment
+
+A Developer implements a service in another language and exposes a versioned HTTP, RPC, or message contract. A host-side client adapter maps the logical port to that service. Each call carries request identity, contract identity, authenticated caller scope, deadline, expected revision where needed, and idempotency key for retriable effects. Trace identifiers are correlation, not authorization credentials.
+
+The client validates response schema and semantic invariants before returning a domain result. It preserves distinguishable retryable failure, terminal rejection, and uncertain effect outcome. Cross-language mappings define missing versus null, integer range, decimal representation, timestamps, byte encodings, enum unknown-value behavior, and error codes. A large integer identifier can be serialized as a string rather than silently rounded by a runtime using floating-point JSON numbers.
+
+The remote state owner owns the transaction and idempotency journal. After a lost response, timeout, or cancellation following submission, the caller queries or retries under the same identity; it cannot infer that no mutation occurred. A read-only service can use a simpler failure profile while retaining identity, scope, and deadline controls.
+
+One state-operation request and its journal use the following structure:
+
+```json
+{
+  "operation_id": "operation:service-a:0123",
+  "contract": "state-conditional-commit:1",
+  "domain": "relationship",
+  "aggregate_id": "relationship:alice:actor-123",
+  "expected_revision": 18,
+  "binding_revision": "binding:state-owner:9",
+  "publication_revision": "publication:alice:6",
+  "policy_revision": "state-policy:relationship:4",
+  "issued_at": "2026-10-01T00:00:00Z",
+  "expires_at": "2026-10-01T00:05:00Z",
+  "mutation": {"trust_delta": 0.05},
+  "output_intent_ref": "output-intent:0123",
+  "output_intent_digest": "sha256:<immutable-intent-digest>",
+  "request_digest": "sha256:<canonical-request-digest>"
+}
+```
+
+Authentication and scope come from verified transport identity or a validated capability. A contract-defined canonical encoding hashes the operation, target, revisions, time bounds, mutation, and immutable intent identity/digest, excluding the digest field itself and volatile transport metadata. The journal key comprises authenticated service, domain, aggregate, and operation identity. An identical request returns its recorded outcome under current result-read authorization; a different digest under that key is rejected before revision comparison.
+
+For a new mutation, the domain owner verifies current authorization, publication/binding/policy applicability, expiry, expected revision, applicable fencing token, and domain invariants. Prepared evidence is bound to the candidate digest and revalidated at commit when conditions can change. A unique journal key and revision comparison are enforced within the transaction so simultaneous identical requests cannot both mutate state. The owner atomically persists state, outcome, and an outbox entry containing the intent or its durable immutable reference. A transient reference does not satisfy that boundary. The result names the committed revision and outcome; prepared or rejected results remain distinct.
+
+The owner enforces a bounded request lifetime and allowed clock skew on first admission. Outcome retention covers permitted retries and delayed delivery; expiry or a tombstone prevents an old request from becoming a new mutation after its detailed journal entry is removed. An expired request can report an existing outcome under current read authorization but cannot cause a fresh commit. A new identity requires a new authorized intent, not merely a timeout. Outbox delivery applies its own idempotency and current egress authorization.
+
+### 109.3 Message-worker embodiment
+
+A language-specific worker receives versioned commands through a durable queue and returns correlated outcomes through a result store or response channel. The command contains work identity, contract version, permitted scope, publication/binding revision, expiry, expected state revision where applicable, and a payload or governed reference. The worker authenticates the producer, verifies the granted scope and current authority, and rejects unsupported or expired commands before new effects. State-changing workers use the owner and journal rules in Section 109.2.
+
+The receiver records admission and idempotency independently of broker deduplication. Acknowledgement occurs at the declared durability boundary. Completion records include operation identity and outcome revision; repeated result messages do not create a new committed transition. Producer and worker use bounded retries and quarantine for poison messages. Queue delays cannot extend a time-limited authority grant by implication.
+
+### 109.4 Capabilities and secrets
+
+Operator-controlled bindings provide only the credentials and operation scope needed by the extension. Service identity, transport security, network policy, resource quotas, logging redaction, and credential rotation apply to the chosen hosting mode. Creator content selects approved logical capabilities rather than arbitrary endpoints or executable paths. Input and output remain subject to the existing trust, Tool, domain-commit, and egress boundaries. An extension cannot acquire broader state authority by returning generated instructions or adding a metadata field.
+
+One extension implements several operations; another implements one narrow capability. A state-owning extension receives authority only for its named domain and approved scope. An evaluator extension receives evidence-production capability without durable mutation or egress authority. Isolation and admission rules are specific to the granted role, rather than assuming all extensions have one trust class.
+
+## 110. Extension validation, registry, and deployment lifecycle
+
+### 110.1 Registration without automatic activation
+
+A registry can be an operator-owned file, database, signed catalog, package index, or explicit deployment configuration. Registering an artifact makes it discoverable; it does not install or activate it. Records pin immutable artifact digests, implemented contracts, validation statements, configuration schemas, and permitted execution modes. Downloaded bytes are checked against the selected digest before loading or deployment. Changed bytes under the same version label are rejected or registered as a new revision.
+
+One lifecycle is `registered → validated → approved → staged → active → draining → retired`, with `rejected` or `quarantined` dispositions. An approval binds artifact, contract profile, deployment configuration, permission scope, and approving authority. Validation of one revision does not automatically validate an upgraded artifact, different endpoint, or expanded permission set.
+
+### 110.2 Conformance and deployment evidence
+
+A versioned test profile includes serialization fixtures and behavioral cases. Depending on the capability it tests duplicate delivery, concurrent conditional writes, stale lease owners, reordered events, timeout after commit, lost acknowledgement, rate limiting, cancellation, recovery, secret redaction, authority scope, and unsupported contract handling. Tests check externally observable contract behavior instead of accepting implementation-specific output as the expected result.
+
+A validation statement records validator identity, artifact digest, contract/schema digest, test-suite revision, tested configuration, execution mode, environment class, timestamp, pass/fail details, evidence references, exclusions, and validity or supersession conditions. Shared contract fixtures can run against implementations written in different languages. Behavior observed with a fake or emulator is labeled accordingly; it is not extended to untested production properties.
+
+Provenance, conformance claims, test evidence, operator approval, and official support status remain separately recorded. A third-party implementation can be usable under an operator's policy without being a first-party reference implementation. A report labeled "passed" does not establish untested backup, security, or availability guarantees.
+
+### 110.3 Activation, replacement, and recovery
+
+The resolver validates content requirements and composition dependencies before publishing an immutable binding revision. Selected capabilities can be staged through isolated test namespaces, shadow reads, or a limited deployment. Shadow writes do not reach authoritative production state or external effects without independent approval. Activation changes bindings for newly admitted work and records the transition identity.
+
+In-flight work retains its recorded binding or undergoes an explicit migration. A replaced state adapter cannot reuse an old transaction context, and a rollback cannot assume a previous store still has current state. Data migration, backfill, fencing, dual-read/write behavior, cutover, and reconciliation use the controlled procedures of Sections 23, 38, 43, 47, and 59.7 as applicable. Draining waits for identified work or executes a permitted termination procedure before retiring the old revision.
+
+If the extension is unavailable, the declared capability policy chooses bounded retry, hold, quarantine, a validated substitute, or an explicitly reduced mode. A substitute must satisfy the same required properties and permitted authority. An in-memory state or queue substitute is not selected automatically to preserve apparent availability. The system does not restore a retired or incompatible extension because a new implementation failed.
+
+### Figure 24 — Artifact admission and deployment binding are separate from content selection
+
+```mermaid
+flowchart TD
+  A[Extension artifact] --> B[Integrity and conformance checks]
+  B --> C[Operator admission]
+  C --> D[Approved extension registry]
+  E[Character capability requirements] --> F[Binding resolver]
+  G[Resolved build composition] --> F
+  D --> F
+  F --> H[Immutable deployment binding]
+  H --> I[Runtime authority boundaries]
+```
+
+## 111. Complete build-and-extension composition procedure
+
+The following procedure connects the preceding mechanisms:
+
+1. Authenticate the build/deployment requester and freeze the catalog, selected contracts, dependency closure, and extension descriptors as the plan in Section 105.
+2. Generate inputs and registration, build the selected artifacts, and verify inclusion/absence under Section 106.
+3. Test selected client/server combinations, retained older behavior, and invalid configurations; issue detached completion and validation records bound to the actual artifacts.
+4. Admit extension revisions under Section 110. Resolve content capabilities to permitted implementations, identities, endpoints, scopes, and deployment profiles without granting installation authority to content.
+5. Stage the resulting binding and run integration/failure checks over its actual boundaries.
+6. Activate an immutable deployment revision, pin admitted work to its composition/binding/publication revisions, and enforce the normal domain-commit, Tool, and egress boundaries.
+7. Drain or explicitly migrate old work, reconcile uncertain effects, and retire old implementations after their obligations end.
+
+Plan, completion, validation, admission, binding, and execution records retain their respective owners. Activation uses a transition identity and expected active revision to prevent concurrent overwrite; failure before that commit leaves the active binding intact.
+
+## 112. Worked build and environment-extension embodiments
+
+### 112.1 Reference Embodiment R16 — Two HTTP contracts with unchanged lower boundaries
+
+A Gateway includes clients for illustrative `chat-http:0.1` and `chat-http:0.2`; an Orchestration distribution includes the corresponding server edges. Both convert into one application request operation where semantics remain equivalent. The queue envelope and state schemas retain their existing independent versions. The build resolver creates single-version and dual-version compositions, generates registrations, verifies absent edge modules in single-version artifacts, and runs wire-contract tests for included versions.
+
+A new installation selects the newer-only composition; an existing installation selects the dual composition and pins its older client contract until migration. Excluded-version configuration fails. An HTTP-edge-only change preserves content and lower contracts when their requirements still match. Old server semantics remain available until dependent work drains or migrates.
+
+### 112.2 Reference Embodiment R17 — A Developer adds a Channel Adapter in Go
+
+A Developer implements an Adapter for a previously unimplemented messaging service in Go. The Adapter validates service-origin authentication, assigns stable event identities, retains external reply context, and normalizes supported events into an existing channel-neutral HTTP contract. Provider credentials stay in the Adapter's deployment bindings. Unsupported event types and size/deadline constraints are handled at ingress before durable admission.
+
+The extension descriptor names the actual contract and capability profile. A shared fixture suite verifies identity mapping, redelivery, permitted event filtering, reply-context ownership, error mappings, and output limits. The operator separately assesses the actual hosting profile and approves its network and credential scope. Existing Character, Memory, and Model processing receives the normalized interaction without importing the new channel's SDK types.
+
+The Adapter preserves the admission protocol of the selected contract: it cannot claim that a transient HTTP response constitutes durable admission if that contract provides only synchronous processing. A queue-admission composition records work durably before its declared acknowledgement boundary. An ambiguous external send is reconciled using the provider's supported identity or status mechanism; where the provider offers none, policy records an uncertain outcome rather than blindly repeating a non-idempotent send.
+
+### 112.3 Reference Embodiment R18 — A remote state capability in a different language
+
+A C# host calls a state owner implemented in a Developer-selected programming language using Section 109.2. Two requests propose transitions from revision 18. One commits state, outcome, and outbox entry as revision 19; the other returns a revision conflict. If the first response is lost, the host recovers the recorded outcome under the same operation identity rather than creating revision 20. A changed payload under that identity is rejected.
+
+A crash before the atomic commit leaves none of the three records committed; a crash after it leaves all three recoverable. Recovery restores the journal before admitting retries. A backend unable to preserve this boundary is rejected for that profile.
+
+### 112.4 Reference Embodiment R19 — Selected worker extensions and creator-facing composition
+
+A distribution includes only the client adapters for approved remote and queue-worker capabilities. A Python worker implements a read-only knowledge operation through versioned queue commands. Command expiry, publication revision, actor/Character scope, and result provenance are validated before results enter context assembly. A timeout triggers bounded retry under the same operation identity or a prepublished knowledge-unavailable response.
+
+A creator sees a concise capability profile; the operator resolves that profile to the exact composition and binding, and the Developer can inspect implementation and contract details. Changing the worker's language does not change the creator package if the required semantics remain valid. Changing knowledge visibility or result semantics requires a new contract/profile or checked content compatibility rather than a cosmetic implementation-version bump. The worker receives read-only data access and cannot commit Memory, change consent, or authorize egress through its result payload.
+
+## 113. Additional combinations and technical propositions
+
+### Combination BX — Contract-selected build with fixed resolution
+
+Boundary-qualified explicit/range selectors resolve against a pinned finite catalog into an immutable composition. That record drives source/package selection, registration, and validation without coupling all lower contracts to the selected wire version.
+
+### Combination BY — Executable exclusion with independent artifact evidence
+
+A selected dependency graph and generated composition root combine with compiler-input inspection, artifact inventory, and reachable-handler probes to detect unselected implementations returning through imports, generators, copy rules, or dynamic loading.
+
+### Combination BZ — Concise composition identity with inspectable contract detail
+
+A creator-facing distribution/capability label resolves to one explicit composition while Developers and Operators inspect the same record for included contracts, bindings, validation scope, and custom overrides.
+
+### Combination CA — Different-language extension with preserved state authority
+
+A host-side client adapter invokes an independently implemented capability through a typed remote or worker contract while the domain owner retains conditional commits, idempotency, and authoritative mutation. Moving a port across a process boundary does not move its transaction authority implicitly.
+
+### Combination CB — Extension integrity, validation, admission, and support separated
+
+Digest-identified artifacts and contract test evidence feed an operator-owned admission lifecycle; publisher identity, conformance, deployment approval, and official support remain distinct records.
+
+### Combination CC — Selected extension dependencies and immutable environment binding
+
+The build selects included adapters and client dependencies while a separate deployment binding resolves permitted capabilities to actual implementations, endpoints, and credential roles. Creator publications depend on logical capabilities and cannot widen the installation or authority scope.
+
+### TP-61 — Independent contract selection across a character-service composition
+
+A build resolves selected boundary contracts independently of product, implementation, content, and storage versions; it includes the corresponding edge implementations while unchanged lower contracts retain their own identities and semantics.
+
+### TP-62 — Fixed selector expansion bound to built artifacts
+
+A finite-catalog resolver records exact version sets, dependency closure, source revision, and locked inputs, then binds completed artifact digests to that record so later catalog changes cannot silently reinterpret the same build selection.
+
+### TP-63 — Unselected implementation absence checked beyond configuration
+
+Compiler-input, dependency, generated-registration, deployable-artifact, and reachable-handler checks detect excluded implementation code reintroduced through transitive or dynamic mechanisms within the declared verification scope.
+
+### TP-64 — Runtime choice constrained by the built composition
+
+Runtime binding selects only implemented and registered contracts in the actual artifact, rejects absent or incompatible selections, and preserves each contract's own validation semantics without silently downgrading or imposing new rules on old versions.
+
+### TP-65 — Developer-selected language with explicit execution-mode contracts
+
+A developer-provided capability uses an admitted in-process package, remote service, or message worker. Language freedom is mediated by interface/ABI or typed transport compatibility and by required behavior rather than by an assumption of arbitrary module loading.
+
+### TP-66 — Extension portability preserving transactional and authority boundaries
+
+An extension contract carries explicit revision, idempotency, deadline, identity, and scope while the state owner preserves its durable transaction and uncertain-outcome reconciliation; a network boundary does not turn a prepared or timed-out operation into a confirmed result.
+
+### TP-67 — Artifact-bound validation distinct from official support
+
+Validation evidence identifies the actual artifact, contract, test suite, execution mode, configuration, validator, and limits. Separate admission and support records prevent third-party origin, schema validity, or one passing test profile from implying untested deployment guarantees.
+
+### TP-68 — Content capability requirements resolved through immutable composition and binding
+
+A creator package declares logical capabilities while operator-owned records connect those requirements to selected implementations and endpoints. A build or extension replacement can preserve unchanged content while contract, data, policy, and in-flight-work checks govern activation, migration, and rollback.
 
 ---
 
