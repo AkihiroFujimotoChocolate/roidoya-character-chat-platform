@@ -7,9 +7,10 @@ namespace LineBot.Api.Tests.ExternalContracts.V01;
 
 public sealed class ChatHttpResponseContractTests
 {
+    // External-15: Verifies normal response text, order and count without adding diagnostic metadata.
     [Theory, Trait("Case", "External-15")]
-    [InlineData(1)]
-    [InlineData(2)]
+    [InlineData(1)] // External-15-01: one reply message
+    [InlineData(2)] // External-15-02: two reply messages
     public async Task Normal_response_keeps_text_order_without_metadata(int count)
     {
         var messages = new[] { "reply-a", "reply-b" }.Take(count).ToArray();
@@ -19,6 +20,7 @@ public sealed class ChatHttpResponseContractTests
         Assert.Equal(messages, (await service.GenerateReplyAsync(Samples.ChatInput())).Messages);
     }
 
+    // External-16 / External-16-01: Verifies unknown fields and optional metadata do not change reply text.
     [Fact, Trait("Case", "External-16")]
     public async Task Unknown_fields_and_optional_metadata_do_not_change_text()
     {
@@ -34,6 +36,7 @@ public sealed class ChatHttpResponseContractTests
         }
     }
 
+    // External-18 / External-18-01: Verifies provider errors select the default fallback without exposing diagnostics.
     [Fact, Trait("Case", "External-18")]
     public async Task Provider_error_uses_default_without_diagnostic_text()
     {
@@ -45,9 +48,10 @@ public sealed class ChatHttpResponseContractTests
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Information && e.Values.Values.Any(v => Equals(v, "provider_error")));
     }
 
+    // External-19: Verifies content filtering preserves the configured fallback, including an explicit empty string.
     [Theory, Trait("Case", "External-19")]
-    [InlineData("filtered-test")]
-    [InlineData("")]
+    [InlineData("filtered-test")] // External-19-01: non-empty content-filtered fallback
+    [InlineData("")]              // External-19-02: explicit empty content-filtered fallback
     public async Task Content_filtered_preserves_explicit_fallback_including_empty(string fallback)
     {
         using var handler = new CaptureHandler((_, _) => Task.FromResult(Samples.Json(
@@ -58,6 +62,7 @@ public sealed class ChatHttpResponseContractTests
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Information && e.Values.Values.Any(v => Equals(v, "content_filtered")));
     }
 
+    // External-20 / External-20-01: Verifies one timeout reply, no late reply and recovery on the next job.
     [Fact, Trait("Case", "External-20")]
     public async Task Timeout_has_one_reply_late_completion_has_none_and_next_job_recovers()
     {
@@ -109,10 +114,11 @@ public sealed class ChatHttpResponseContractTests
         }
     }
 
+    // External-21: Verifies HTTP and transport failures select the default fallback and are logged.
     [Theory, Trait("Case", "External-21")]
-    [InlineData(400)]
-    [InlineData(500)]
-    [InlineData(0)]
+    [InlineData(400)] // External-21-01: HTTP 400 response
+    [InlineData(500)] // External-21-02: HTTP 500 response
+    [InlineData(0)]   // External-21-03: transport exception
     public async Task Http_error_or_transport_failure_uses_default_and_records_failure(int status)
     {
         using var handler = new CaptureHandler((_, _) => status == 0

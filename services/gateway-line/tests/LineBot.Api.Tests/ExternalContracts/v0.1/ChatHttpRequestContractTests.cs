@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-using System.Text.Json;
 using LineBot.Api.Services;
 using LineBot.Api.Tests.Support;
 using Microsoft.Extensions.Logging;
@@ -7,10 +6,10 @@ namespace LineBot.Api.Tests.ExternalContracts.V01;
 
 public sealed class ChatHttpRequestContractTests
 {
-    // External-01: fixed request contract, including the absence of extra wire fields.
+    // External-01: Verifies all v0.1 request fields and supplied or generated request IDs.
     [Theory]
-    [InlineData("correlation-test")]
-    [InlineData(null)]
+    [InlineData("correlation-test")] // External-01-01: requestId supplied
+    [InlineData(null)]               // External-01-02: requestId omitted
     [Trait("Case", "External-01")]
     public async Task Request_fields_preserve_their_meaning(string? requestId)
     {
@@ -20,28 +19,17 @@ public sealed class ChatHttpRequestContractTests
         var service = new HttpV01ChatService(client, Samples.Config(), new LogBook().For<HttpV01ChatService>());
         await service.GenerateReplyAsync(request);
         var sent = Assert.Single(handler.Requests);
-        Assert.Equal(HttpMethod.Post, sent.Method);
-        using var json = sent.Json(); var body = json.RootElement;
-        Assert.Equal(new[] { "author", "conversation", "event_id", "limits", "message", "origin", "request_id" },
-            body.EnumerateObject().Select(p => p.Name).OrderBy(n => n).ToArray());
-        Assert.Equal(JsonValueKind.String, body.GetProperty("request_id").ValueKind);
-        if (requestId is null) Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("request_id").GetString()));
-        else Assert.Equal(requestId, body.GetProperty("request_id").GetString());
-        Assert.Equal("", body.GetProperty("event_id").GetString());
-        Assert.Equal("line", body.GetProperty("origin").GetProperty("platform").GetString());
-        Assert.Equal("conversation-test", body.GetProperty("conversation").GetProperty("id").GetString());
-        Assert.Equal("line-author-test", body.GetProperty("author").GetProperty("user_id").GetString());
-        Assert.Equal("こんにちは", body.GetProperty("message").GetProperty("text").GetString());
-        Assert.Equal(JsonValueKind.Null, body.GetProperty("message").GetProperty("language").ValueKind);
-        Assert.Equal(7, body.GetProperty("limits").GetProperty("timeout_seconds").GetInt32());
-        Assert.Equal(123, body.GetProperty("limits").GetProperty("max_chars_per_message").GetInt32());
+        V01RequestAssertions.Body(sent, requestId);
+        V01RequestAssertions.Headers(sent);
+        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
     }
 
+    // External-02: Verifies version-header naming and Chat authentication without changing the request body or route.
     [Theory]
-    [InlineData(null, null)]
-    [InlineData(null, "key-test")]
-    [InlineData("X-Test-Chat-Version", null)]
-    [InlineData("X-Test-Chat-Version", "key-test")]
+    [InlineData(null, null)]                        // External-02-01: default version header; no Chat API key
+    [InlineData(null, "key-test")]                  // External-02-02: default version header; Chat API key supplied
+    [InlineData("X-Test-Chat-Version", null)]       // External-02-03: custom version header; no Chat API key
+    [InlineData("X-Test-Chat-Version", "key-test")] // External-02-04: custom version header; Chat API key supplied
     [Trait("Case", "External-02")]
     public async Task Headers_and_chat_authentication(string? headerName, string? key)
     {
@@ -51,12 +39,12 @@ public sealed class ChatHttpRequestContractTests
         var service = new HttpV01ChatService(client, Samples.Config(settings.ToArray()), new LogBook().For<HttpV01ChatService>());
         await service.GenerateReplyAsync(Samples.ChatInput());
         var sent = Assert.Single(handler.Requests);
-        Assert.Equal("0.1", sent.Header(headerName ?? "X-Chat-Api-Version"));
-        Assert.Equal("application/json; charset=utf-8", Assert.Single(sent.ContentHeaders["Content-Type"]));
-        if (key is null) Assert.False(sent.Headers.ContainsKey("Authorization"));
-        else Assert.Equal("Bearer key-test", sent.Header("Authorization"));
+        V01RequestAssertions.Headers(sent, headerName, key);
+        V01RequestAssertions.Body(sent);
+        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
     }
 
+    // External-03 / External-03-01: Verifies valid additional headers while preserving the v0.1 request contract.
     [Fact, Trait("Case", "External-03")]
     public async Task Additional_headers_keep_the_normal_body_and_content_type()
     {
@@ -66,15 +54,15 @@ public sealed class ChatHttpRequestContractTests
         await service.GenerateReplyAsync(Samples.ChatInput());
         var sent = Assert.Single(handler.Requests);
         Assert.Equal("a", sent.Header("X-Test-A")); Assert.Equal("b", sent.Header("X-Test-B"));
-        Assert.Equal("application/json; charset=utf-8", Assert.Single(sent.ContentHeaders["Content-Type"]));
-        using var json = sent.Json();
-        Assert.Equal("こんにちは", json.RootElement.GetProperty("message").GetProperty("text").GetString());
-        Assert.False(json.RootElement.TryGetProperty("X-Test-A", out _));
+        V01RequestAssertions.Body(sent);
+        V01RequestAssertions.Headers(sent);
+        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
     }
 
+    // External-04: Verifies invalid additional headers are omitted without corrupting the normal request.
     [Theory]
-    [InlineData("{\"Content-Type\":\"text/plain\"}", "Content-Type")]
-    [InlineData("{\"X-Test-Bad\":\"line1\\r\\nline2\"}", "X-Test-Bad")]
+    [InlineData("{\"Content-Type\":\"text/plain\"}", "Content-Type")]   // External-04-01: Content-Type cannot be added as a request header
+    [InlineData("{\"X-Test-Bad\":\"line1\\r\\nline2\"}", "X-Test-Bad")] // External-04-02: header value contains CR/LF
     [Trait("Case", "External-04")]
     public async Task Invalid_additional_header_is_not_sent_or_moved_to_content(string setting, string header)
     {
@@ -83,18 +71,23 @@ public sealed class ChatHttpRequestContractTests
         await service.GenerateReplyAsync(Samples.ChatInput());
         var sent = Assert.Single(handler.Requests);
         Assert.False(sent.Headers.ContainsKey(header));
-        Assert.Equal("application/json; charset=utf-8", Assert.Single(sent.ContentHeaders["Content-Type"]));
+        V01RequestAssertions.Body(sent);
+        V01RequestAssertions.Headers(sent);
+        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
         if (header != "Content-Type") Assert.False(sent.ContentHeaders.ContainsKey(header));
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Warning);
     }
 
+    // External-14 / External-14-01: Verifies Unicode, escapes and whitespace survive JSON conversion without changing other request fields.
     [Fact, Trait("Case", "External-14")]
     public async Task Text_round_trip_retains_unicode_escapes_and_whitespace()
     {
         using var handler = new CaptureHandler(); using var client = handler.Client();
         var service = new HttpV01ChatService(client, Samples.Config(), new LogBook().For<HttpV01ChatService>());
         await service.GenerateReplyAsync(Samples.ChatInput(Samples.RichText));
-        using var json = Assert.Single(handler.Requests).Json();
-        Assert.Equal(Samples.RichText, json.RootElement.GetProperty("message").GetProperty("text").GetString());
+        var sent = Assert.Single(handler.Requests);
+        V01RequestAssertions.Body(sent, text: Samples.RichText);
+        V01RequestAssertions.Headers(sent);
+        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
     }
 }

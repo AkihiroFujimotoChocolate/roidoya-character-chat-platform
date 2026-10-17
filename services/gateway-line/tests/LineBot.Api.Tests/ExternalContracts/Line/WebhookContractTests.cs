@@ -5,9 +5,10 @@ namespace LineBot.Api.Tests.ExternalContracts.Line;
 
 public sealed class WebhookContractTests
 {
+    // External-27: Verifies signed direct text preserves connection values and redelivery through the real host.
     [Theory, Trait("Case", "External-27")]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(false)] // External-27-01: first delivery
+    [InlineData(true)]  // External-27-02: redelivery
     public async Task Signed_direct_text_keeps_existing_connection_values(bool redelivery)
     {
         using var factory = new GatewayFactory(); using var client = factory.CreateClient();
@@ -34,10 +35,11 @@ public sealed class WebhookContractTests
         Assert.Single(factory.ChatHttp.Requests); Assert.Single(factory.LineHttp.Requests);
     }
 
+    // External-28: Verifies invalid signatures reject events without queuing or outgoing HTTP.
     [Theory, Trait("Case", "External-28")]
-    [InlineData("missing")]
-    [InlineData("wrong-secret")]
-    [InlineData("body-changed")]
+    [InlineData("missing")]      // External-28-01: signature missing
+    [InlineData("wrong-secret")] // External-28-02: signature made with another secret
+    [InlineData("body-changed")] // External-28-03: body bytes changed after signing
     public async Task Invalid_signature_does_not_process_any_event(string condition)
     {
         using var factory = new GatewayFactory(); using var client = factory.CreateClient();
@@ -54,10 +56,11 @@ public sealed class WebhookContractTests
         Assert.Empty(factory.ChatHttp.Requests); Assert.Empty(factory.LineHttp.Requests);
     }
 
+    // External-29: Verifies regular events outside the processing scope are acknowledged without processing.
     [Theory, Trait("Case", "External-29")]
-    [InlineData("standby", "message", "text")]
-    [InlineData("active", "follow", "text")]
-    [InlineData("active", "message", "image")]
+    [InlineData("standby", "message", "text")] // External-29-01: standby text message
+    [InlineData("active", "follow", "text")]   // External-29-02: active follow event
+    [InlineData("active", "message", "image")] // External-29-03: active image message
     public async Task Out_of_scope_regular_event_is_acknowledged_without_processing(string mode, string kind, string messageKind)
     {
         using var factory = new GatewayFactory(); using var client = factory.CreateClient();

@@ -7,6 +7,7 @@ namespace LineBot.Api.Tests.InternalContracts;
 
 public sealed class ProductionCompositionTests
 {
+    // Internal-10 / Internal-10-01: Verifies the real Program resolves Http mode through IChatService and registers Worker.
     [Fact, Trait("Case", "Internal-10")]
     public async Task Real_program_resolves_http_mode_through_chat_interface()
     {
@@ -19,6 +20,7 @@ public sealed class ProductionCompositionTests
         // No singleton/scoped or HttpClient ownership requirement is introduced.
     }
 
+    // Internal-11 / Internal-11-01: Verifies the real Worker uses abstract service replacements after production registration.
     [Fact, Trait("Case", "Internal-11")]
     public async Task Real_worker_calls_replacements_registered_after_production_composition()
     {

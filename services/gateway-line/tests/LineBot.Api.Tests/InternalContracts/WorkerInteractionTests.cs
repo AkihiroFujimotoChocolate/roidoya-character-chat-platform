@@ -7,6 +7,7 @@ namespace LineBot.Api.Tests.InternalContracts;
 
 public sealed class WorkerInteractionTests
 {
+    // Internal-05 / Internal-05-01: Verifies Worker passes text to an independent IChatService implementation.
     [Fact, Trait("Case", "Internal-05")]
     public async Task Worker_passes_text_to_an_independent_chat_implementation()
     {
@@ -17,9 +18,10 @@ public sealed class WorkerInteractionTests
         // Conversation/author equality and configured limits belong to later repairs.
     }
 
+    // Internal-06: Verifies Worker preserves the same job's reply arguments and cancellable tokens.
     [Theory, Trait("Case", "Internal-06")]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(false)] // Internal-06-01: first delivery
+    [InlineData(true)]  // Internal-06-02: redelivery
     public async Task Worker_preserves_all_reply_arguments_for_the_same_job(bool redelivery)
     {
         await using var rig = new WorkerRig(); var job = Samples.Job(redelivery);
@@ -35,9 +37,10 @@ public sealed class WorkerInteractionTests
         Assert.True(Assert.Single(rig.Chat.Calls).Token.CanBeCanceled);
     }
 
+    // Internal-07: Verifies Worker preserves messages already selected by Chat for each status.
     [Theory, Trait("Case", "Internal-07")]
-    [InlineData("provider_error")]
-    [InlineData("content_filtered")]
+    [InlineData("provider_error")]   // Internal-07-01: provider_error with messages already selected by Chat
+    [InlineData("content_filtered")] // Internal-07-02: content_filtered with messages already selected by Chat
     public async Task Worker_does_not_replace_the_messages_selected_by_chat(string status)
     {
         await using var rig = new WorkerRig();
@@ -47,6 +50,7 @@ public sealed class WorkerInteractionTests
         Assert.Equal(selected, Assert.Single(rig.Reply.Calls).Messages);
     }
 
+    // Internal-08 / Internal-08-01: Verifies stopping Worker actually cancels the token received by Chat.
     [Fact, Trait("Case", "Internal-08")]
     public async Task Stopping_worker_cancels_the_token_received_by_chat()
     {
@@ -66,6 +70,7 @@ public sealed class WorkerInteractionTests
         Assert.Empty(rig.Reply.Calls);
     }
 
+    // Internal-09 / Internal-09-01: Verifies stopping Worker actually cancels the token received by reply.
     [Fact, Trait("Case", "Internal-09")]
     public async Task Stopping_worker_cancels_the_token_received_by_reply()
     {
@@ -85,6 +90,7 @@ public sealed class WorkerInteractionTests
         Assert.True(Assert.Single(rig.Chat.Calls).Token.IsCancellationRequested);
     }
 
+    // Internal-12 / Internal-12-01: Verifies a generated reply is not reported as delivered when sending fails.
     [Fact, Trait("Case", "Internal-12")]
     public async Task Generated_messages_are_not_reported_as_delivered_when_reply_fails()
     {

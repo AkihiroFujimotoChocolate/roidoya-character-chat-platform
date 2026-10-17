@@ -7,12 +7,13 @@ namespace LineBot.Api.Tests.ExternalContracts.Line;
 
 public sealed class ReplyHttpContractTests
 {
+    // External-30: Verifies LINE reply payloads and the success/failure result of each HTTP attempt.
     [Theory, Trait("Case", "External-30")]
-    [InlineData(1, 200)]
-    [InlineData(2, 200)]
-    [InlineData(5, 200)]
-    [InlineData(1, 400)]
-    [InlineData(1, 0)]
+    [InlineData(1, 200)] // External-30-01: one message; HTTP 200
+    [InlineData(2, 200)] // External-30-02: two messages; HTTP 200
+    [InlineData(5, 200)] // External-30-03: five messages; HTTP 200
+    [InlineData(1, 400)] // External-30-04: one message; HTTP 400
+    [InlineData(1, 0)]   // External-30-05: one message; transport exception
     public async Task Reply_request_and_http_result(int count, int status)
     {
         var texts = Enumerable.Range(1, count).Select(i => $"{Samples.RichText}:{i}").ToList();
@@ -40,9 +41,10 @@ public sealed class ReplyHttpContractTests
         else Assert.DoesNotContain(logs.Entries, e => e.Level >= LogLevel.Warning);
     }
 
+    // External-31: Verifies six messages are refused and logged before any LINE HTTP attempt.
     [Theory, Trait("Case", "External-31")]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(false)] // External-31-01: six messages on first delivery
+    [InlineData(true)]  // External-31-02: six messages on redelivery
     public async Task Six_messages_are_refused_before_sending(bool redelivery)
     {
         using var handler = new CaptureHandler(); using var client = handler.Client(); var logs = new LogBook();

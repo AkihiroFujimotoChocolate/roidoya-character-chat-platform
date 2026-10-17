@@ -6,6 +6,7 @@ namespace LineBot.Api.Tests.InternalContracts;
 
 public sealed class ChatBoundaryTests
 {
+    // Internal-01 / Internal-01-01: Verifies the Chat input boundary excludes protocol-version and transport details.
     [Fact, Trait("Case", "Internal-01")]
     public void Input_contract_is_semantic_and_does_not_expose_version_or_transport()
     {
@@ -18,6 +19,7 @@ public sealed class ChatBoundaryTests
         }
     }
 
+    // Internal-02 / Internal-02-01: Verifies the Chat result boundary excludes unused wire metadata and transport details.
     [Fact, Trait("Case", "Internal-02")]
     public void Result_exposes_messages_and_status_without_unused_wire_metadata()
     {
@@ -31,6 +33,7 @@ public sealed class ChatBoundaryTests
         }
     }
 
+    // Internal-03 / Internal-03-01: Verifies compiled Worker dependencies use abstractions without interpreting wire details.
     [Fact, Trait("Case", "Internal-03")]
     public void Worker_compiled_dependencies_use_abstract_services_without_wire_interpretation()
     {
@@ -44,6 +47,7 @@ public sealed class ChatBoundaryTests
         Assert.DoesNotContain(uses, u => u.Literal?.StartsWith("Chat:Http:", StringComparison.Ordinal) == true);
     }
 
+    // Internal-04 / Internal-04-01: Verifies the v0.1 adapter owns wire conversion and IChatService has its own source file.
     [Fact, Trait("Case", "Internal-04")]
     public void V01_implementation_owns_wire_conversion_and_interface_has_its_own_file()
     {
