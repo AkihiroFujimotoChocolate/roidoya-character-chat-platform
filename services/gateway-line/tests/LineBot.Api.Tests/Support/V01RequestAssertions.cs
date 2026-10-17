@@ -2,10 +2,10 @@
 using System.Text.Json;
 namespace LineBot.Api.Tests.Support;
 
-// Expected wire values are fixed by the v0.1 contract, independently of production mapping.
+// Fixed contract fields and input-dependent expectations are checked separately from production mapping.
 internal static class V01RequestAssertions
 {
-    internal static void Body(CapturedHttp sent, string? requestId = "correlation-test", string text = "こんにちは")
+    internal static void Body(CapturedHttp sent, RequestExpected expected)
     {
         Assert.Equal(HttpMethod.Post, sent.Method);
         using var json = sent.Json();
@@ -13,18 +13,18 @@ internal static class V01RequestAssertions
         Assert.Equal(new[] { "author", "conversation", "event_id", "limits", "message", "origin", "request_id" },
             body.EnumerateObject().Select(p => p.Name).OrderBy(n => n).ToArray());
         Assert.Equal(JsonValueKind.String, body.GetProperty("request_id").ValueKind);
-        if (requestId is null)
+        if (expected.RequestId is null)
             Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("request_id").GetString()));
         else
-            Assert.Equal(requestId, body.GetProperty("request_id").GetString());
+            Assert.Equal(expected.RequestId, body.GetProperty("request_id").GetString());
         Assert.Equal("", body.GetProperty("event_id").GetString());
         Assert.Equal("line", body.GetProperty("origin").GetProperty("platform").GetString());
-        Assert.Equal("conversation-test", body.GetProperty("conversation").GetProperty("id").GetString());
-        Assert.Equal("line-author-test", body.GetProperty("author").GetProperty("user_id").GetString());
-        Assert.Equal(text, body.GetProperty("message").GetProperty("text").GetString());
+        Assert.Equal(expected.ConversationId, body.GetProperty("conversation").GetProperty("id").GetString());
+        Assert.Equal(expected.AuthorUserId, body.GetProperty("author").GetProperty("user_id").GetString());
+        Assert.Equal(expected.MessageText, body.GetProperty("message").GetProperty("text").GetString());
         Assert.Equal(JsonValueKind.Null, body.GetProperty("message").GetProperty("language").ValueKind);
-        Assert.Equal(7, body.GetProperty("limits").GetProperty("timeout_seconds").GetInt32());
-        Assert.Equal(123, body.GetProperty("limits").GetProperty("max_chars_per_message").GetInt32());
+        Assert.Equal(expected.TimeoutSeconds, body.GetProperty("limits").GetProperty("timeout_seconds").GetInt32());
+        Assert.Equal(expected.MaxCharsPerMessage, body.GetProperty("limits").GetProperty("max_chars_per_message").GetInt32());
     }
 
     internal static void Headers(CapturedHttp sent, string? versionHeaderName = null, string? apiKey = null)

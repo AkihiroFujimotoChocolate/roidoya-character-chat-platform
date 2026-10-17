@@ -33,35 +33,26 @@ internal static class Samples
         foreach (var (key, value) in settings) values[key] = value;
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
-    internal static ChatServiceRequest ChatInput(string text = "こんにちは") => new()
-    {
-        RequestId = "correlation-test", ConversationId = "conversation-test",
-        AuthorUserId = "author-test", MessageText = text, TimeoutSeconds = 7, MaxCharsPerMessage = 123
-    };
-    internal static QueueItem Job(bool redelivery = false) => new()
-    {
-        MessageText = "worker-test", ReplyToken = "reply-token-worker",
-        WebhookEventId = "event-worker", UserKey = "conversation-worker", IsRedelivery = redelivery
-    };
     // Fixtures are made by the test, never by the production serializer or mapper.
     internal static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
     internal static HttpResponseMessage Ok(params string[] messages) =>
         Json(JsonSerializer.Serialize(new { request_id = "correlation-test", status = "ok", messages, fallback_used = false }));
     internal static byte[] Webhook(bool redelivery = false, string mode = "active", string kind = "message",
-        string messageKind = "text", string text = "こんにちは", string eventId = "event-test", string person = "person-test")
+        string messageKind = "text", string text = "こんにちは", string eventId = "event-test", string person = "person-test",
+        string replyToken = "reply-test", string messageId = "message-test", string destination = "destination-test")
     {
         var evt = new Dictionary<string, object?> {
             ["type"] = kind, ["mode"] = mode, ["timestamp"] = 1700000000000L, ["webhookEventId"] = eventId,
-            ["source"] = new { type = "user", userId = person }, ["replyToken"] = "reply-test",
+            ["source"] = new { type = "user", userId = person }, ["replyToken"] = replyToken,
             ["deliveryContext"] = new { isRedelivery = redelivery }
         };
         if (kind == "message") {
             evt["message"] = messageKind == "text"
-                ? (object)new { id = "message-test", type = "text", text }
-                : new { id = "message-test", type = "image", contentProvider = new { type = "line" } };
+                ? (object)new { id = messageId, type = "text", text }
+                : new { id = messageId, type = "image", contentProvider = new { type = "line" } };
         }
-        return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { destination = "destination-test", events = new[] { evt } }));
+        return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { destination, events = new[] { evt } }));
     }
     internal static string Sign(byte[] bytes, string secret = Secret) =>
         Convert.ToBase64String(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), bytes));
@@ -203,6 +194,7 @@ internal sealed class WorkerRig : IAsyncDisposable
     internal LogBook Logs { get; } = new();
     private readonly ServiceProvider _services;
     internal MessageWorkerService Worker { get; }
+    internal IConfiguration Settings { get; } = Samples.Config();
     internal WorkerRig() {
         var services = new ServiceCollection();
         services.AddSingleton<ILocalQueueService>(Queue);
@@ -211,7 +203,7 @@ internal sealed class WorkerRig : IAsyncDisposable
         services.AddSingleton<IChatService>(Chat);
         services.AddSingleton<ILineReplyService>(Reply);
         _services = services.BuildServiceProvider();
-        Worker = new(_services, Logs.For<MessageWorkerService>(), Samples.Config());
+        Worker = new(_services, Logs.For<MessageWorkerService>(), Settings);
     }
     internal async Task RunAsync(QueueItem item) {
         Queue.TryEnqueue(item);
