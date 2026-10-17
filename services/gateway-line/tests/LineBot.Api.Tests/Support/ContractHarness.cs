@@ -78,7 +78,20 @@ internal sealed class CaptureHandler : HttpMessageHandler
     internal ConcurrentQueue<CapturedHttp> Requests { get; } = new();
     internal CaptureHandler(Func<CapturedHttp, CancellationToken, Task<HttpResponseMessage>>? respond = null) =>
         _respond = respond ?? ((_, _) => Task.FromResult(Samples.Ok("reply-a")));
-    internal Task<CapturedHttp> NextAsync() => _seen.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+    internal async Task<CapturedHttp> NextAsync()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        return await _seen.Reader.ReadAsync(deadline.Token);
+    }
+    internal async Task ExpectQuietAsync()
+    {
+        using var window = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+        try {
+            var readable = await _seen.Reader.WaitToReadAsync(window.Token);
+            Assert.False(readable, "Unexpected additional outbound HTTP request.");
+        }
+        catch (OperationCanceledException) when (window.IsCancellationRequested) { }
+    }
     internal HttpClient Client() => new(this, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

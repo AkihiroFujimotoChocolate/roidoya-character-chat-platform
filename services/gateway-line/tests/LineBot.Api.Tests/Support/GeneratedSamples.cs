@@ -1,44 +1,8 @@
 // SPDX-License-Identifier: MIT
-using System.Security.Cryptography;
 using System.Text.Json;
 using LineBot.Api.Models;
 using LineBot.Api.Services;
 namespace LineBot.Api.Tests.Support;
-
-internal sealed record RequestValues(string? RequestId, string ConversationId, string AuthorUserId,
-    string MessageText, int TimeoutSeconds, int MaxCharsPerMessage);
-
-internal sealed record RequestExpected(string? RequestId, string ConversationId, string AuthorUserId,
-    string MessageText, int TimeoutSeconds, int MaxCharsPerMessage);
-
-internal sealed record RequestSample(RequestValues Values, RequestExpected Expected)
-{
-    internal ChatServiceRequest Input => new() {
-        RequestId = Values.RequestId, ConversationId = Values.ConversationId,
-        AuthorUserId = Values.AuthorUserId, MessageText = Values.MessageText,
-        TimeoutSeconds = Values.TimeoutSeconds, MaxCharsPerMessage = Values.MaxCharsPerMessage
-    };
-}
-
-internal static class RequestSamples
-{
-    internal static RequestSample CreateRandom(string? text = null) => Create(NewValues(text));
-    internal static RequestSample CreateWithoutRequestId(string? text = null) =>
-        Create(NewValues(text) with { RequestId = null });
-
-    // Replay takes every value explicitly; it never fills omitted fields randomly.
-    internal static RequestSample Create(RequestValues values) => new(values,
-        new(values.RequestId, values.ConversationId, "line-" + values.AuthorUserId,
-            values.MessageText, values.TimeoutSeconds, values.MaxCharsPerMessage));
-
-    internal static RequestSample FromJson(string valuesJson) =>
-        Create(GeneratedValues.Read<RequestValues>(valuesJson,
-            "RequestId", "ConversationId", "AuthorUserId", "MessageText", "TimeoutSeconds", "MaxCharsPerMessage"));
-
-    private static RequestValues NewValues(string? text) => new(
-        GeneratedValues.Id("request"), GeneratedValues.Id("conversation"), GeneratedValues.Id("author"),
-        text ?? GeneratedValues.Text(), RandomNumberGenerator.GetInt32(2, 6), RandomNumberGenerator.GetInt32(80, 122));
-}
 
 internal sealed record FlowValues(string Text, string ConversationId, string PersonId, string EventId,
     string ReplyToken, string MessageId, string Destination, string[] Messages, string DefaultFallback)

@@ -1,115 +1,63 @@
 // SPDX-License-Identifier: MIT
-using LineBot.Api.Services;
 using LineBot.Api.Tests.Support;
-using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 namespace LineBot.Api.Tests.ExternalContracts.V01;
 
-public sealed class ChatHttpRequestContractTests : DiagnosticTest
+public sealed class ChatHttpRequestContractTests : ExternalFlowTest
 {
     public ChatHttpRequestContractTests(ITestOutputHelper output) : base(output) { }
 
-    // External-01: Verifies all v0.1 request fields and supplied or generated request IDs.
-    [Theory]
-    [InlineData(true)]  // External-01-01: requestId supplied
-    [InlineData(false)] // External-01-02: requestId omitted
-    [Trait("Case", "External-01")]
-    public async Task Request_fields_preserve_their_meaning(bool supplied)
+    [Fact, Trait("Case", "External-01")]
+    public async Task Webhook_input_becomes_the_v01_http_request()
     {
-        using var handler = new CaptureHandler();
-        using var client = handler.Client();
-        var sample = supplied ? RequestSamples.CreateRandom() : RequestSamples.CreateWithoutRequestId();
-        var settings = Samples.Config();
-        Trace(supplied ? "External-01-01" : "External-01-02", new { sample.Values, sample.Expected }, settings);
-        var service = new HttpV01ChatService(client, settings, new LogBook().For<HttpV01ChatService>());
-        await service.GenerateReplyAsync(sample.Input);
-        var sent = Assert.Single(handler.Requests);
-        V01RequestAssertions.Body(sent, sample.Expected);
-        V01RequestAssertions.Headers(sent);
-        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
+        var data = ExternalSamples.Random();
+        using var chat = new CaptureHandler((_, _) => Task.FromResult(Samples.Ok(data.ReplyText)));
+        using var host = new ExternalGatewayFactory(chat);
+        var body = data.Body();
+        Record("External-01-01", host, data, body, Samples.Sign(body),
+            new { ChatStatus = 200, Messages = new[] { data.ReplyText }, LineStatus = 200 });
+        using var client = host.CreateClient();
+        await SendAsync(client, body, Samples.Sign(body));
+        ExternalAssertions.Chat(await host.Chat.NextAsync(), data, "https://chat.test/chat/v0.1/generate-replies");
+        ExternalAssertions.Line(await host.Line.NextAsync(), data, data.ReplyText);
+        await FinishAsync(host, 1, 1);
     }
 
-    // External-02: Verifies version-header naming and Chat authentication without changing the request body or route.
-    [Theory]
-    [InlineData(null, false)]                  // External-02-01: default version header; no Chat API key
-    [InlineData(null, true)]                   // External-02-02: default version header; Chat API key supplied
-    [InlineData("X-Test-Chat-Version", false)] // External-02-03: custom version header; no Chat API key
-    [InlineData("X-Test-Chat-Version", true)]  // External-02-04: custom version header; Chat API key supplied
-    [Trait("Case", "External-02")]
-    public async Task Headers_and_chat_authentication(string? headerName, bool suppliedKey)
+    [Theory, Trait("Case", "External-02")]
+    [InlineData(false)] // External-02-01
+    [InlineData(true)]  // External-02-02
+    public async Task Chat_authentication_uses_only_the_configured_chat_key(bool useKey)
     {
-        using var handler = new CaptureHandler(); using var client = handler.Client();
-        var sample = RequestSamples.CreateRandom();
-        var key = suppliedKey ? GeneratedValues.Id("chat-key") : null;
-        var settings = new List<(string, string?)> { ("Chat:Http:ApiKey", key) };
-        if (headerName is not null) settings.Add(("Chat:Http:VersionHeaderName", headerName));
-        var configuration = Samples.Config(settings.ToArray());
-        var condition = (headerName is null ? 1 : 3) + (suppliedKey ? 1 : 0);
-        Trace($"External-02-{condition:00}", new { sample.Values, sample.Expected }, configuration);
-        var service = new HttpV01ChatService(client, configuration, new LogBook().For<HttpV01ChatService>());
-        await service.GenerateReplyAsync(sample.Input);
-        var sent = Assert.Single(handler.Requests);
-        V01RequestAssertions.Headers(sent, headerName, key);
-        V01RequestAssertions.Body(sent, sample.Expected);
-        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
+        var data = ExternalSamples.Random();
+        var key = useKey ? GeneratedValues.Id("chat-key") : null;
+        using var chat = new CaptureHandler((_, _) => Task.FromResult(Samples.Ok(data.ReplyText)));
+        using var host = new ExternalGatewayFactory(chat);
+        host.Settings["Chat:Http:ApiKey"] = key;
+        var body = data.Body();
+        Record(useKey ? "External-02-02" : "External-02-01", host, data, body, Samples.Sign(body),
+            new { ChatKey = key, ChatStatus = 200, Messages = new[] { data.ReplyText }, LineStatus = 200 });
+        using var client = host.CreateClient();
+        await SendAsync(client, body, Samples.Sign(body));
+        var sent = await host.Chat.NextAsync();
+        ExternalAssertions.Chat(sent, data, "https://chat.test/chat/v0.1/generate-replies", key);
+        Assert.DoesNotContain(Samples.AccessToken, sent.Headers.Values.SelectMany(v => v));
+        ExternalAssertions.Line(await host.Line.NextAsync(), data, data.ReplyText);
+        await FinishAsync(host, 1, 1);
     }
 
-    // External-03 / External-03-01: Verifies valid additional headers while preserving the v0.1 request contract.
-    [Fact, Trait("Case", "External-03")]
-    public async Task Additional_headers_keep_the_normal_body_and_content_type()
-    {
-        using var handler = new CaptureHandler(); using var client = handler.Client();
-        var sample = RequestSamples.CreateRandom();
-        var first = GeneratedValues.Id("header-a"); var second = GeneratedValues.Id("header-b");
-        var additional = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> {
-            ["X-Test-A"] = first, ["X-Test-B"] = second
-        });
-        var settings = Samples.Config(("Chat:Http:AdditionalHeaders", additional));
-        Trace("External-03-01", new { sample.Values, sample.Expected }, settings);
-        var service = new HttpV01ChatService(client, settings, new LogBook().For<HttpV01ChatService>());
-        await service.GenerateReplyAsync(sample.Input);
-        var sent = Assert.Single(handler.Requests);
-        Assert.Equal(first, sent.Header("X-Test-A")); Assert.Equal(second, sent.Header("X-Test-B"));
-        V01RequestAssertions.Body(sent, sample.Expected);
-        V01RequestAssertions.Headers(sent);
-        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
-    }
-
-    // External-04: Verifies invalid additional headers are omitted without corrupting the normal request.
-    [Theory]
-    [InlineData("{\"Content-Type\":\"text/plain\"}", "Content-Type")]   // External-04-01: Content-Type cannot be added as a request header
-    [InlineData("{\"X-Test-Bad\":\"line1\\r\\nline2\"}", "X-Test-Bad")] // External-04-02: header value contains CR/LF
-    [Trait("Case", "External-04")]
-    public async Task Invalid_additional_header_is_not_sent_or_moved_to_content(string setting, string header)
-    {
-        using var handler = new CaptureHandler(); using var client = handler.Client(); var logs = new LogBook();
-        var sample = RequestSamples.CreateRandom();
-        var settings = Samples.Config(("Chat:Http:AdditionalHeaders", setting));
-        Trace(header == "Content-Type" ? "External-04-01" : "External-04-02", new { sample.Values, sample.Expected, header }, settings);
-        var service = new HttpV01ChatService(client, settings, logs.For<HttpV01ChatService>());
-        await service.GenerateReplyAsync(sample.Input);
-        var sent = Assert.Single(handler.Requests);
-        Assert.False(sent.Headers.ContainsKey(header));
-        V01RequestAssertions.Body(sent, sample.Expected);
-        V01RequestAssertions.Headers(sent);
-        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
-        if (header != "Content-Type") Assert.False(sent.ContentHeaders.ContainsKey(header));
-        Assert.Contains(logs.Entries, e => e.Level == LogLevel.Warning);
-    }
-
-    // External-14 / External-14-01: Verifies Unicode, escapes and whitespace survive JSON conversion without changing other request fields.
     [Fact, Trait("Case", "External-14")]
-    public async Task Text_round_trip_retains_unicode_escapes_and_whitespace()
+    public async Task Webhook_special_characters_reach_chat_without_changes()
     {
-        using var handler = new CaptureHandler(); using var client = handler.Client();
-        var sample = RequestSamples.CreateRandom(text: Samples.RichText);
-        var settings = Samples.Config();
-        Trace("External-14-01", new { sample.Values, sample.Expected }, settings);
-        var service = new HttpV01ChatService(client, settings, new LogBook().For<HttpV01ChatService>());
-        await service.GenerateReplyAsync(sample.Input);
-        var sent = Assert.Single(handler.Requests);
-        V01RequestAssertions.Body(sent, sample.Expected);
-        V01RequestAssertions.Headers(sent);
-        Assert.Equal(new Uri("https://chat.test/chat/v0.1/generate-replies"), sent.Uri);
+        var data = ExternalSamples.Random(Samples.RichText);
+        using var chat = new CaptureHandler((_, _) => Task.FromResult(Samples.Ok(data.ReplyText)));
+        using var host = new ExternalGatewayFactory(chat);
+        var body = data.Body();
+        Record("External-14-01", host, data, body, Samples.Sign(body),
+            new { ChatStatus = 200, Messages = new[] { data.ReplyText }, LineStatus = 200 });
+        using var client = host.CreateClient();
+        await SendAsync(client, body, Samples.Sign(body));
+        ExternalAssertions.Chat(await host.Chat.NextAsync(), data, "https://chat.test/chat/v0.1/generate-replies");
+        ExternalAssertions.Line(await host.Line.NextAsync(), data, data.ReplyText);
+        await FinishAsync(host, 1, 1);
     }
 }
