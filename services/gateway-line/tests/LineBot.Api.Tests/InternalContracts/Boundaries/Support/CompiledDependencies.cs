@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 using System.Reflection;
 using System.Reflection.Emit;
-namespace LineBot.Api.Tests.Support;
+namespace LineBot.Api.Tests.InternalContracts.Boundaries.Support;
 
 // Resolve actual metadata tokens in compiled methods, including generated async
 // state machines. Comments and spelling in source text are not dependencies.
@@ -74,3 +74,4 @@ internal static class CompiledDependencies
         throw new InvalidOperationException("The checked-out solution sources are required by the file-boundary contract.");
     }
 }
+

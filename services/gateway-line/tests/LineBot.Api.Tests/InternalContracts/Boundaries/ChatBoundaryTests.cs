@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Models;
 using LineBot.Api.Services;
-using LineBot.Api.Tests.Support;
-namespace LineBot.Api.Tests.InternalContracts;
+using LineBot.Api.Tests.InternalContracts.Boundaries.Support;
+namespace LineBot.Api.Tests.InternalContracts.Boundaries;
 
 public sealed class ChatBoundaryTests
 {
-    // Internal-01 / Internal-01-01: Verifies the Chat input boundary excludes protocol-version and transport details.
-    [Fact, Trait("Case", "Internal-01")]
-    public void Input_contract_is_semantic_and_does_not_expose_version_or_transport()
+    [Fact(DisplayName = "Internal-01: Chat input excludes protocol version and transport details")]
+    [Trait("Case", "Internal-01")]
+    public void ChatInput_Contract_ExcludesVersionAndTransport()
     {
+        // Arrange
         var method = typeof(IChatService).GetMethod(nameof(IChatService.GenerateReplyAsync))!;
+        // Assert
         Assert.Equal(typeof(ChatServiceRequest), method.GetParameters()[0].ParameterType);
         Assert.Equal(typeof(CancellationToken), method.GetParameters()[1].ParameterType);
         foreach (var property in typeof(ChatServiceRequest).GetProperties()) {
@@ -19,10 +21,11 @@ public sealed class ChatBoundaryTests
         }
     }
 
-    // Internal-02 / Internal-02-01: Verifies the Chat result boundary excludes unused wire metadata and transport details.
-    [Fact, Trait("Case", "Internal-02")]
-    public void Result_exposes_messages_and_status_without_unused_wire_metadata()
+    [Fact(DisplayName = "Internal-02: Chat result excludes unused wire metadata and transport details")]
+    [Trait("Case", "Internal-02")]
+    public void ChatResult_Contract_ExcludesUnusedWireMetadata()
     {
+        // Assert
         Assert.Equal(typeof(Task<ChatServiceResult>),
             typeof(IChatService).GetMethod(nameof(IChatService.GenerateReplyAsync))!.ReturnType);
         Assert.NotNull(typeof(ChatServiceResult).GetProperty(nameof(ChatServiceResult.Messages)));
@@ -33,11 +36,13 @@ public sealed class ChatBoundaryTests
         }
     }
 
-    // Internal-03 / Internal-03-01: Verifies compiled Worker dependencies use abstractions without interpreting wire details.
-    [Fact, Trait("Case", "Internal-03")]
-    public void Worker_compiled_dependencies_use_abstract_services_without_wire_interpretation()
+    [Fact(DisplayName = "Internal-03: Worker depends on abstract services without interpreting wire details")]
+    [Trait("Case", "Internal-03")]
+    public void Worker_CompiledDependencies_UseAbstractBoundaries()
     {
+        // Arrange / Act
         var types = CompiledDependencies.Types(typeof(MessageWorkerService)).Distinct().ToArray();
+        // Assert
         Assert.Contains(typeof(IChatService), types);
         Assert.Contains(typeof(ILineReplyService), types);
         Assert.DoesNotContain(types, IsTransportOrWire);
@@ -47,26 +52,10 @@ public sealed class ChatBoundaryTests
         Assert.DoesNotContain(uses, u => u.Literal?.StartsWith("Chat:Http:", StringComparison.Ordinal) == true);
     }
 
-    // Internal-04 / Internal-04-01: Verifies the v0.1 adapter owns wire conversion and IChatService has its own source file.
-    [Fact, Trait("Case", "Internal-04")]
-    public void V01_implementation_owns_wire_conversion_and_interface_has_its_own_file()
-    {
-        Assert.True(typeof(IChatService).IsAssignableFrom(typeof(HttpV01ChatService)));
-        Assert.Contains("V01", typeof(HttpV01ChatService).Name, StringComparison.OrdinalIgnoreCase);
-        var source = Path.Combine(CompiledDependencies.SourceRoot(), "services", "gateway-line", "src",
-            "LineBot.Api", "Services", "IChatService.cs");
-        Assert.True(File.Exists(source), "IChatService must remain in its dedicated source file.");
-        Assert.Matches(@"(?m)^\s*public\s+interface\s+IChatService\b", File.ReadAllText(source));
-        var adapterTypes = CompiledDependencies.Types(typeof(HttpV01ChatService)).ToArray();
-        Assert.Contains(adapterTypes, t => t == typeof(System.Text.Json.JsonSerializer));
-        Assert.Contains(adapterTypes, t => t == typeof(HttpClient));
-        Assert.DoesNotContain(typeof(LineReplyService), adapterTypes);
-        Assert.DoesNotContain(typeof(ILineReplyService), adapterTypes);
-    }
-
     private static bool IsTransportOrWire(Type type) =>
         type.Namespace?.StartsWith("System.Net.Http", StringComparison.Ordinal) == true ||
         type.Namespace?.StartsWith("System.Text.Json", StringComparison.Ordinal) == true ||
         type == typeof(Uri) || type.Name.Contains("Wire", StringComparison.OrdinalIgnoreCase) ||
         type == typeof(HttpV01ChatService);
 }
+

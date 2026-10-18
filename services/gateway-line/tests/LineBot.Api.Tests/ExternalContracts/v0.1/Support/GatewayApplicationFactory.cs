@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+using LineBot.Api.Tests.Support;
+using LineBot.Api.Tests.ExternalContracts.V01.Chat;
+using LineBot.Api.Tests.ExternalContracts.V01.Line;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -6,27 +9,30 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http;
-namespace LineBot.Api.Tests.Support;
+namespace LineBot.Api.Tests.ExternalContracts.V01.Support;
 
 // Uses the real application and stores. Only HTTP transport and synthetic settings change.
-internal sealed class ExternalGatewayFactory : WebApplicationFactory<global::Program>
+internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::Program>
 {
     internal CaptureHandler Chat { get; }
-    internal CaptureHandler Line { get; } = new((_, _) => Task.FromResult(
-        Samples.Json("{\"sentMessages\":[{\"id\":\"sent-test\",\"quoteToken\":\"quote-test\"}]}")));
+    internal CaptureHandler Line { get; }
     internal Dictionary<string, string?> Settings { get; } = new() {
         ["Chat:Mode"] = "Http", ["Chat:ApiVersion"] = "0.1",
         ["Chat:Http:BaseUrl"] = "https://chat.test/",
         ["Chat:Http:Endpoint"] = "/chat/v0.1/generate-replies",
         ["Chat:RequestTimeoutSeconds"] = "1",
-        ["Line:ChannelSecret"] = Samples.Secret,
-        ["Line:ChannelAccessToken"] = Samples.AccessToken,
+        ["Line:ChannelSecret"] = LineWebhookSamples.Secret,
+        ["Line:ChannelAccessToken"] = LineReplySamples.AccessToken,
         ["Reply:Qps"] = "100",
-        ["Chat:Fallbacks:Default"] = Samples.DefaultFallback,
-        ["Chat:Fallbacks:Timeout"] = Samples.TimeoutFallback
+        ["Chat:Fallbacks:Default"] = ChatV01Samples.DefaultFallback,
+        ["Chat:Fallbacks:Timeout"] = ChatV01Samples.TimeoutFallback
     };
     private IHost? _host;
-    internal ExternalGatewayFactory(CaptureHandler? chat = null) => Chat = chat ?? new();
+    internal GatewayApplicationFactory(CaptureHandler chat, CaptureHandler line)
+    {
+        Chat = chat;
+        Line = line;
+    }
     protected override IHost CreateHost(IHostBuilder builder) => _host = base.CreateHost(builder);
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -62,3 +68,4 @@ internal sealed class ExternalGatewayFactory : WebApplicationFactory<global::Pro
         }
     }
 }
+
