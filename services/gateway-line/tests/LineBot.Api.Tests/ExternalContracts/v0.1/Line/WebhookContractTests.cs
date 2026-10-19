@@ -39,8 +39,8 @@ public sealed class WebhookContractTests : ExternalFlowTest
         LineReplyAssertions.AssertRequest(await host.Line.NextAsync(), data, data.ReplyText);
         await Task.WhenAll(chat.AssertNoPendingRequestsAsync(), line.AssertNoPendingRequestsAsync());
         await host.StopHostAsync();
-        Assert.Equal(1, chat.Requests.Count);
-        Assert.Equal(1, line.Requests.Count);
+        Assert.Single(chat.Requests);
+        Assert.Single(line.Requests);
     }
 
     [Theory(DisplayName = "External-28: Invalid signatures return 400 without outbound requests")]

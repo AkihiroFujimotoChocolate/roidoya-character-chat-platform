@@ -36,8 +36,8 @@ public sealed class ChatHttpRequestContractTests : ExternalFlowTest
         LineReplyAssertions.AssertRequest(await host.Line.NextAsync(), data, data.ReplyText);
         await Task.WhenAll(chat.AssertNoPendingRequestsAsync(), line.AssertNoPendingRequestsAsync());
         await host.StopHostAsync();
-        Assert.Equal(1, chat.Requests.Count);
-        Assert.Equal(1, line.Requests.Count);
+        Assert.Single(chat.Requests);
+        Assert.Single(line.Requests);
     }
 
     [Fact(DisplayName = "External-02: Default Chat headers omit Authorization when no key is configured")]
@@ -70,8 +70,8 @@ public sealed class ChatHttpRequestContractTests : ExternalFlowTest
         LineReplyAssertions.AssertRequest(await host.Line.NextAsync(), data, data.ReplyText);
         await Task.WhenAll(chat.AssertNoPendingRequestsAsync(), line.AssertNoPendingRequestsAsync());
         await host.StopHostAsync();
-        Assert.Equal(1, chat.Requests.Count);
-        Assert.Equal(1, line.Requests.Count);
+        Assert.Single(chat.Requests);
+        Assert.Single(line.Requests);
     }
 
     [Fact(DisplayName = "External-14: Webhook special characters reach Chat unchanged")]
@@ -100,8 +100,8 @@ public sealed class ChatHttpRequestContractTests : ExternalFlowTest
         LineReplyAssertions.AssertRequest(await host.Line.NextAsync(), data, data.ReplyText);
         await Task.WhenAll(chat.AssertNoPendingRequestsAsync(), line.AssertNoPendingRequestsAsync());
         await host.StopHostAsync();
-        Assert.Equal(1, chat.Requests.Count);
-        Assert.Equal(1, line.Requests.Count);
+        Assert.Single(chat.Requests);
+        Assert.Single(line.Requests);
     }
 }
 

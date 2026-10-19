@@ -41,8 +41,8 @@ public sealed class ChatRoutingContractTests : ExternalFlowTest
         LineReplyAssertions.AssertRequest(await host.Line.NextAsync(), data, data.ReplyText);
         await Task.WhenAll(chat.AssertNoPendingRequestsAsync(), line.AssertNoPendingRequestsAsync());
         await host.StopHostAsync();
-        Assert.Equal(1, chat.Requests.Count);
-        Assert.Equal(1, line.Requests.Count);
+        Assert.Single(chat.Requests);
+        Assert.Single(line.Requests);
     }
 }
 
