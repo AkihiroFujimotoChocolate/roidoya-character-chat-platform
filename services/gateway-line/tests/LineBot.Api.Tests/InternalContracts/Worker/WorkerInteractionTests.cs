@@ -29,8 +29,8 @@ public sealed class WorkerInteractionTests : DiagnosticTest
 
     [Theory(DisplayName = "Internal-06: Worker preserves the same job reply arguments and cancellable tokens")]
     [Trait("Case", "Internal-06")]
-    [InlineData("Internal-06-01", "Initial delivery", false)]
-    [InlineData("Internal-06-02", "Redelivery", true)]
+    [InlineData("Internal-06-01", "Initial delivery preserves the same job reply arguments and cancellable tokens", false)]
+    [InlineData("Internal-06-02", "Redelivery preserves the same job reply arguments and cancellable tokens", true)]
     public async Task Worker_ReplyCall_PreservesJobArguments(string caseId, string caseDescription, bool redelivery)
     {
         // Arrange
@@ -54,8 +54,8 @@ public sealed class WorkerInteractionTests : DiagnosticTest
 
     [Theory(DisplayName = "Internal-07: Worker preserves messages already selected by Chat")]
     [Trait("Case", "Internal-07")]
-    [InlineData("Internal-07-01", "Provider error with selected messages", "provider_error")]
-    [InlineData("Internal-07-02", "Content filtered with selected messages", "content_filtered")]
+    [InlineData("Internal-07-01", "Messages selected with provider_error reach reply unchanged and in order", "provider_error")]
+    [InlineData("Internal-07-02", "Messages selected with content_filtered reach reply unchanged and in order", "content_filtered")]
     public async Task Worker_SelectedMessages_PreservesContentAndOrder(string caseId, string caseDescription, string status)
     {
         // Arrange

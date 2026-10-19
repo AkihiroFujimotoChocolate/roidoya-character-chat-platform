@@ -11,9 +11,6 @@ permissions:
 
 jobs:
   build-and-test:
-    # This review branch defers restore/build/test until the reviewed integration phase.
-    # A skipped job is not evidence of a passed or zero-test suite.
-    if: github.ref != 'refs/heads/test/issue-6-contract-regression' && github.head_ref != 'test/issue-6-contract-regression'
     runs-on: ubuntu-latest
 
     steps:

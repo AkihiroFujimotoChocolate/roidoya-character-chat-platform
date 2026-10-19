@@ -12,8 +12,8 @@ public sealed class ChatRoutingContractTests : ExternalFlowTest
 
     [Theory(DisplayName = "External-06: Configured endpoint takes precedence over the endpoint template")]
     [Trait("Case", "External-06")]
-    [InlineData("External-06-01", "Existing API endpoint", "/api/chat/v0.1")]
-    [InlineData("External-06-02", "Smoke-test endpoint", "/chat/v0.1/generate-replies")]
+    [InlineData("External-06-01", "The existing API endpoint overrides the endpoint template", "/api/chat/v0.1")]
+    [InlineData("External-06-02", "The smoke-test endpoint overrides the endpoint template", "/chat/v0.1/generate-replies")]
     public async Task Webhook_ConfiguredEndpoint_OverridesEndpointTemplate(string caseId, string caseDescription, string endpoint)
     {
         // Arrange

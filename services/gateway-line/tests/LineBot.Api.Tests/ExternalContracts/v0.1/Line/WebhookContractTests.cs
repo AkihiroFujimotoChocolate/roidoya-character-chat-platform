@@ -13,8 +13,8 @@ public sealed class WebhookContractTests : ExternalFlowTest
 
     [Theory(DisplayName = "External-27: A signed text event reaches Chat and LINE over HTTP")]
     [Trait("Case", "External-27")]
-    [InlineData("External-27-01", "Initial delivery", false)]
-    [InlineData("External-27-02", "Redelivery", true)]
+    [InlineData("External-27-01", "Initial delivery sends the matching Chat request and LINE reply", false)]
+    [InlineData("External-27-02", "Redelivery of an unprocessed event sends the matching Chat request and LINE reply", true)]
     public async Task Webhook_SignedTextEvent_SendsChatAndLineRequests(string caseId, string caseDescription, bool redelivery)
     {
         // Arrange
@@ -45,9 +45,9 @@ public sealed class WebhookContractTests : ExternalFlowTest
 
     [Theory(DisplayName = "External-28: Invalid signatures return 400 without outbound requests")]
     [Trait("Case", "External-28")]
-    [InlineData("External-28-01", "Missing signature", "missing")]
-    [InlineData("External-28-02", "Different signing secret", "wrong-secret")]
-    [InlineData("External-28-03", "Valid JSON body changed after signing", "changed-body")]
+    [InlineData("External-28-01", "A missing signature returns 400 without Chat or LINE requests", "missing")]
+    [InlineData("External-28-02", "A signature from a different secret returns 400 without Chat or LINE requests", "wrong-secret")]
+    [InlineData("External-28-03", "Changing the valid JSON body after signing returns 400 without Chat or LINE requests", "changed-body")]
     public async Task Webhook_InvalidSignature_ReturnsBadRequestWithoutOutboundRequests(string caseId, string caseDescription, string failure)
     {
         // Arrange
@@ -78,9 +78,9 @@ public sealed class WebhookContractTests : ExternalFlowTest
 
     [Theory(DisplayName = "External-29: Out-of-scope events return 200 without outbound requests")]
     [Trait("Case", "External-29")]
-    [InlineData("External-29-01", "Standby text message", "standby", "standby", "message", "text")]
-    [InlineData("External-29-02", "Follow event", "follow", "active", "follow", "text")]
-    [InlineData("External-29-03", "Image message", "image", "active", "message", "image")]
+    [InlineData("External-29-01", "A standby text message returns 200 without Chat or LINE requests", "standby", "standby", "message", "text")]
+    [InlineData("External-29-02", "A follow event returns 200 without Chat or LINE requests", "follow", "active", "follow", "text")]
+    [InlineData("External-29-03", "An image message returns 200 without Chat or LINE requests", "image", "active", "message", "image")]
     public async Task Webhook_OutOfScopeEvent_ReturnsOkWithoutOutboundRequests(string caseId, string caseDescription, string kind,
         string mode, string eventType, string messageType)
     {

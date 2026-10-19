@@ -12,8 +12,8 @@ public sealed class ChatHttpResponseContractTests : ExternalFlowTest
 
     [Theory(DisplayName = "External-15: A normal Chat response produces the matching LINE reply")]
     [Trait("Case", "External-15")]
-    [InlineData("External-15-01", "Immediate response", false)]
-    [InlineData("External-15-02", "Response released after request notification", true)]
+    [InlineData("External-15-01", "An immediate Chat response produces the matching LINE reply", false)]
+    [InlineData("External-15-02", "A gated Chat response produces no LINE reply before release and the matching reply after release", true)]
     public async Task Webhook_NormalChatResponse_SendsLineReply(string caseId, string caseDescription, bool delayed)
     {
         // Arrange
@@ -88,9 +88,9 @@ public sealed class ChatHttpResponseContractTests : ExternalFlowTest
 
     [Theory(DisplayName = "External-21: Chat HTTP failure uses the default fallback")]
     [Trait("Case", "External-21")]
-    [InlineData("External-21-01", "HTTP 400", "400", 400)]
-    [InlineData("External-21-02", "HTTP 500", "500", 500)]
-    [InlineData("External-21-03", "HTTP transport exception", "transport", 0)]
+    [InlineData("External-21-01", "HTTP 400 with provider_error produces the default fallback", "400", 400)]
+    [InlineData("External-21-02", "HTTP 500 produces the default fallback", "500", 500)]
+    [InlineData("External-21-03", "A transport exception produces the default fallback", "transport", 0)]
     public async Task Webhook_ChatHttpFailure_SendsDefaultFallback(string caseId, string caseDescription, string failure, int statusCode)
     {
         // Arrange
