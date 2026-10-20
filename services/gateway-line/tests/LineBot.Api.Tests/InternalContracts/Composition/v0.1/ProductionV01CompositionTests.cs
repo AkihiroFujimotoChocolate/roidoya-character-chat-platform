@@ -13,15 +13,15 @@ public sealed class ProductionV01CompositionTests : DiagnosticTest
 {
     public ProductionV01CompositionTests(ITestOutputHelper output) : base(output) { }
 
-    [Fact(DisplayName = "Internal-10: Production Http mode resolves the v0.1 Chat service and registers Worker")]
+    [Fact(DisplayName = "Internal-10: Production registration resolves the v0.1 Chat service and registers Worker")]
     [Trait("Case", "Internal-10")]
-    public async Task Program_HttpMode_ResolvesV01ChatService()
+    public async Task Program_ProductionRegistration_ResolvesV01ChatService()
     {
         // Arrange
         using var factory = new ProductionGatewayFactory();
         Trace("Internal-10-01", new { FactorySettings = factory.Settings });
         // Act
-        _ = factory.Services; // Boots the real entry point; no test-side mode switch.
+        _ = factory.Services; // Boots the real entry point without supplying a mode setting.
         using var scope = factory.Services.CreateScope();
         // Assert
         Assert.IsType<HttpV01ChatService>(scope.ServiceProvider.GetRequiredService<IChatService>());
