@@ -15,36 +15,22 @@ builder.Services.AddSingleton<ILocalQueueService, LocalQueueService>();
 builder.Services.AddSingleton<IUserLockService, UserLockService>();
 builder.Services.AddSingleton<IIdempotencyService, IdempotencyService>();
 
-// Register chat service based on mode
 builder.Services.AddScoped<IChatService>(serviceProvider =>
-{
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var chatMode = configuration.GetValue<string>("Chat:Mode", "Echo");
-    
-    return (chatMode ?? "Echo").ToLowerInvariant() switch
-    {
-        "http" => serviceProvider.GetRequiredService<HttpV01ChatService>(),
-        "echo" => serviceProvider.GetRequiredService<EchoChatService>(),
-        _ => throw new InvalidOperationException($"Unsupported Chat:Mode: {chatMode}")
-    };
-});
+    serviceProvider.GetRequiredService<HttpV01ChatService>());
 
-// Register individual chat services
-builder.Services.AddScoped<EchoChatService>();
 builder.Services.AddScoped<HttpV01ChatService>();
 builder.Services.AddHostedService<MessageWorkerService>();
 
 var app = builder.Build();
 
 // Health probe
-app.MapGet("/", (IConfiguration cfg) => 
+app.MapGet("/", (IConfiguration cfg) =>
 {
-    var chatMode = cfg.GetValue<string>("Chat:Mode", "Echo");
     var platform = cfg.GetValue<string>("Runtime:Platform", "Local");
-    return Results.Ok($"LINE Webhook Gateway - {chatMode} Mode ({platform})");
+    return Results.Ok($"LINE Webhook Gateway ({platform})");
 });
 
-// POST /line/webhook — enhanced implementation with Echo Mode
+// POST /line/webhook
 app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILoggerFactory lf, 
     ILocalQueueService queueService, IUserLockService lockService, ILineReplyService replyService) =>
 {
