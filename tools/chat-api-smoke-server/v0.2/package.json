@@ -1,0 +1,8 @@
+{
+  "name": "@roidoya/chat-api-smoke-server-v0.2",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node src/server.mjs", "check": "node --check src/server.mjs" }
+}
