@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging;
 
 namespace LineBot.Api.Tests.InternalContracts.Composition.V01;
 
-// The real Program registers the mode switch and hosted Worker. Only transport,
+// The real Program registers the v0.1 Chat service and hosted Worker. Only transport,
 // ancillary stores and (when requested) the abstract services are replaced.
 internal sealed class ProductionGatewayFactory : WebApplicationFactory<global::Program>
 {
@@ -26,7 +26,7 @@ internal sealed class ProductionGatewayFactory : WebApplicationFactory<global::P
     internal ChatDouble? ChatOverride { get; init; }
     internal ReplyDouble? ReplyOverride { get; init; }
     internal Dictionary<string, string?> Settings { get; } = new() {
-        ["Chat:Mode"] = "Http", ["Chat:ApiVersion"] = "0.1",
+        ["Chat:ApiVersion"] = "0.1",
         ["Chat:Http:BaseUrl"] = "https://chat.test/", ["Chat:RequestTimeoutSeconds"] = "1",
         ["Line:ChannelSecret"] = LineWebhookSamples.Secret, ["Line:ChannelAccessToken"] = LineReplySamples.AccessToken,
         ["Reply:Qps"] = "100", ["Chat:Fallbacks:Default"] = ChatV01Samples.DefaultFallback,

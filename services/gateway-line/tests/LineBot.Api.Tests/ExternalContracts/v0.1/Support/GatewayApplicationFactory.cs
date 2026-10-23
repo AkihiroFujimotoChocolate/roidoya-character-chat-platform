@@ -17,7 +17,7 @@ internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::
     internal CaptureHandler Chat { get; }
     internal CaptureHandler Line { get; }
     internal Dictionary<string, string?> Settings { get; } = new() {
-        ["Chat:Mode"] = "Http", ["Chat:ApiVersion"] = "0.1",
+        ["Chat:ApiVersion"] = "0.1",
         ["Chat:Http:BaseUrl"] = "https://chat.test/",
         ["Chat:Http:Endpoint"] = "/chat/v0.1/generate-replies",
         ["Chat:RequestTimeoutSeconds"] = "1",
