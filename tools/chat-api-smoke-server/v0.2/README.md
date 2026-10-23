@@ -17,14 +17,15 @@ them. Keep this internal endpoint off public tunnels; expose only the Gateway's
 LINE webhook. Reply configuration changes require restarting this tool.
 
 The tool accepts `POST /chat/v0.2/generate-replies` with a c0.2 normal request:
-`interaction_id`, `scope.service_id`, `origin.channel_type=line`,
-`origin.channel_instance_id`, `conversation.id`, `actor.id`, `character.id`, and
+`interaction_id`, `origin.channel_type=line`,
+`origin.channel_instance_id`, `actor.id`, `character.id`, and
 `message.id` / `message.content` containing one text part. It returns the same
 interaction ID, `status=ok`, and one text message with a fresh output message ID.
 The optional `X-Chat-Api-Version` header must be `0.2` if present.
 
-Phase 1 sends `scope.service_id=default`, `conversation.id=default`, a fixed
-Character ID, and the c0.1-style actor ID (`line-user-<LINE user ID>`). The tool
+Phase 1 sends five root fields: `interaction_id`, `origin`, `actor`, `character`,
+and `message`. It sends no `scope` or `conversation`. It uses a fixed Character
+ID and the c0.1-style actor ID (`line-user-<LINE user ID>`). The tool
 accepts these values without maintaining an identity map, permissions, history,
 or conversation state. A successful exchange checks the connection and response
 shape; it does not demonstrate conversation separation or durable identity.

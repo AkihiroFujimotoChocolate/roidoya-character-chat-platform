@@ -41,9 +41,8 @@ public sealed class DirectChatCompositionTests : DiagnosticTest
     {
         var values = FlowSamples.CreateRandom();
         var additions = new Dictionary<string, string> {
-            ["InteractionId"] = GeneratedValues.Id("interaction"), ["ServiceId"] = "default", ["ChannelType"] = "line",
+            ["InteractionId"] = GeneratedValues.Id("interaction"), ["ChannelType"] = "line",
             ["ChannelInstanceId"] = "bot:internal-test", ["ActorId"] = "line-user-U11111111111111111111111111111111",
-            ["ConversationId"] = "default",
             ["CharacterId"] = "character:internal-test", ["InputMessageId"] = GeneratedValues.Id("input-message")
         };
         var job = values.Job();
@@ -59,7 +58,6 @@ public sealed class DirectChatCompositionTests : DiagnosticTest
         await factory.StopWorkerAsync();
         var call = Assert.Single(chat.Calls);
         Assert.Equal(values.Text, call.Request.MessageText);
-        Assert.Equal("default", call.Request.ConversationId);
         foreach (var (name, expected) in additions) {
             var property = typeof(ChatServiceRequest).GetProperty(name);
             Assert.NotNull(property); Assert.Equal(typeof(string), property!.PropertyType);

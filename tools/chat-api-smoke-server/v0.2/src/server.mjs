@@ -28,9 +28,9 @@ const server = http.createServer(async (req, res) => {
     const version = req.headers['x-chat-api-version'];
     const part = body?.message?.content;
     if ((version !== undefined && version !== '0.2') ||
-        !nonempty(body?.interaction_id) || !nonempty(body?.scope?.service_id) ||
+        !nonempty(body?.interaction_id) ||
         body?.origin?.channel_type !== 'line' || !nonempty(body?.origin?.channel_instance_id) ||
-        !nonempty(body?.conversation?.id) || !nonempty(body?.actor?.id) || !nonempty(body?.character?.id) ||
+        !nonempty(body?.actor?.id) || !nonempty(body?.character?.id) ||
         !nonempty(body?.message?.id) || !Array.isArray(part) || part.length !== 1 ||
         part[0]?.type !== 'text' || !nonempty(part[0]?.text)) {
       return send(res, 400, { error: 'invalid_smoke_request' });

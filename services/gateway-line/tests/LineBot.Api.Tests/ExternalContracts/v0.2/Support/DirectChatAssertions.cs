@@ -4,7 +4,7 @@ using LineBot.Api.Tests.Support;
 
 namespace LineBot.Api.Tests.ExternalContracts.V02.Support;
 
-internal sealed record DirectChatIds(string Interaction, string Conversation, string Actor, string Message);
+internal sealed record DirectChatIds(string Interaction, string Actor, string Message);
 
 internal static class DirectChatAssertions
 {
@@ -16,22 +16,19 @@ internal static class DirectChatAssertions
         if (sent.Headers.TryGetValue("X-Chat-Api-Version", out var versions)) Assert.Equal("0.2", Assert.Single(versions));
         Assert.False(sent.Headers.ContainsKey("Authorization"));
         using var json = sent.Json(); var b = json.RootElement;
-        AssertFields(b, "interaction_id", "scope", "origin", "conversation", "actor", "character", "message");
-        AssertFields(b.GetProperty("scope"), "service_id");
-        Assert.Equal("default", b.GetProperty("scope").GetProperty("service_id").GetString());
+        AssertFields(b, "interaction_id", "origin", "actor", "character", "message");
         AssertFields(b.GetProperty("origin"), "channel_type", "channel_instance_id");
         Assert.Equal("line", b.GetProperty("origin").GetProperty("channel_type").GetString());
         Assert.Equal(v.Destination, b.GetProperty("origin").GetProperty("channel_instance_id").GetString());
-        foreach (var name in new[] { "conversation", "actor", "character" }) AssertFields(b.GetProperty(name), "id");
+        foreach (var name in new[] { "actor", "character" }) AssertFields(b.GetProperty(name), "id");
         Assert.Equal("line-user-" + v.UserId, b.GetProperty("actor").GetProperty("id").GetString());
-        Assert.Equal("default", b.GetProperty("conversation").GetProperty("id").GetString());
         Assert.Equal(v.CharacterId, b.GetProperty("character").GetProperty("id").GetString());
         var message = b.GetProperty("message"); AssertFields(message, "id", "content");
         var part = Assert.Single(message.GetProperty("content").EnumerateArray()); AssertFields(part, "type", "text");
         Assert.Equal("text", part.GetProperty("type").GetString()); Assert.Equal(v.Text, part.GetProperty("text").GetString());
         // Phase 1 uses the c0.1-style actor value; LINE credentials stay at the Gateway.
         Assert.DoesNotContain(v.ReplyToken, b.GetRawText(), StringComparison.Ordinal);
-        return new(AssertNonEmpty(b.GetProperty("interaction_id")), AssertNonEmpty(b.GetProperty("conversation").GetProperty("id")),
+        return new(AssertNonEmpty(b.GetProperty("interaction_id")),
             AssertNonEmpty(b.GetProperty("actor").GetProperty("id")), AssertNonEmpty(message.GetProperty("id")));
     }
     internal static void AssertReply(CapturedHttp sent, DirectChatValues v)
