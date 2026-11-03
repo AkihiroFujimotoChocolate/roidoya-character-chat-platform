@@ -90,6 +90,12 @@ public class MessageWorkerService : BackgroundService
             {
                 RequestId = Guid.NewGuid().ToString(),
                 MessageText = queueItem.MessageText,
+                InteractionId = queueItem.InteractionId,
+                ChannelType = queueItem.ChannelType,
+                ChannelInstanceId = queueItem.ChannelInstanceId,
+                ActorId = queueItem.ActorId,
+                CharacterId = queueItem.CharacterId,
+                InputMessageId = queueItem.InputMessageId,
                 TimeoutSeconds = 20,
                 MaxCharsPerMessage = 1000,
                 ConversationId = queueItem.UserKey,

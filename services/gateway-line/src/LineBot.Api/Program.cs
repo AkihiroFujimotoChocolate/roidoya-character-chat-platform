@@ -10,15 +10,26 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.Services.AddHttpClient<HttpV01ChatService>();
+builder.Services.AddHttpClient<HttpV02ChatService>();
 builder.Services.AddHttpClient<ILineReplyService, LineReplyService>();
 builder.Services.AddSingleton<ILocalQueueService, LocalQueueService>();
 builder.Services.AddSingleton<IUserLockService, UserLockService>();
 builder.Services.AddSingleton<IIdempotencyService, IdempotencyService>();
 
 builder.Services.AddScoped<IChatService>(serviceProvider =>
-    serviceProvider.GetRequiredService<HttpV01ChatService>());
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var apiVersion = configuration.GetValue<string>("Chat:ApiVersion", "0.1");
+    return apiVersion switch
+    {
+        "0.1" => serviceProvider.GetRequiredService<HttpV01ChatService>(),
+        "0.2" => serviceProvider.GetRequiredService<HttpV02ChatService>(),
+        _ => throw new InvalidOperationException($"Unsupported Chat:ApiVersion '{apiVersion}'.")
+    };
+});
 
 builder.Services.AddScoped<HttpV01ChatService>();
+builder.Services.AddScoped<HttpV02ChatService>();
 builder.Services.AddHostedService<MessageWorkerService>();
 
 var app = builder.Build();
@@ -111,7 +122,7 @@ app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILogger
     {
         try
         {
-            await ProcessWebhookEvent(webhookEvent, queueService, lockService, replyService, cfg, log, requestId);
+            await ProcessWebhookEvent(webhookEvent, webhookRequest.Destination, queueService, lockService, replyService, cfg, log, requestId);
         }
         catch (Exception ex)
         {
@@ -123,7 +134,7 @@ app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILogger
     return Results.Ok();
 });
 
-async Task ProcessWebhookEvent(WebhookEvent webhookEvent, ILocalQueueService queueService, 
+async Task ProcessWebhookEvent(WebhookEvent webhookEvent, string destination, ILocalQueueService queueService,
     IUserLockService lockService, ILineReplyService replyService, IConfiguration cfg, ILogger log, string requestId)
 {
     // Event filtering - only process text message events that are not in standby mode
@@ -184,6 +195,16 @@ async Task ProcessWebhookEvent(WebhookEvent webhookEvent, ILocalQueueService que
         IsRedelivery = isRedelivery,
         QueuedAt = DateTime.UtcNow
     };
+
+    if (cfg.GetValue<string>("Chat:ApiVersion", "0.1") == "0.2")
+    {
+        queueItem.InteractionId = Guid.NewGuid().ToString();
+        queueItem.ChannelType = "line";
+        queueItem.ChannelInstanceId = destination;
+        queueItem.ActorId = "line-user-" + webhookEvent.Source.UserId;
+        queueItem.CharacterId = cfg["Character:Id"] ?? string.Empty;
+        queueItem.InputMessageId = Guid.NewGuid().ToString();
+    }
 
     if (queueService.TryEnqueue(queueItem))
     {
