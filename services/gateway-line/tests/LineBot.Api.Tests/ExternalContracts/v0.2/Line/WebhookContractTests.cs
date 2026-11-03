@@ -64,7 +64,12 @@ public sealed class WebhookContractTests : ExternalFlowTest
         var control = ExternalSamples.Random() with { ReplyText = "reply-a" };
         var data = ExternalSamples.Random() with { CharacterId = control.CharacterId, ReplyText = "reply-a" };
         data = data with { Text = text ?? data.Text, ReplyToken = replyToken ?? data.ReplyToken };
-        using var chat = new CaptureHandler((sent, _) => Task.FromResult(ChatV02Samples.Ok(sent, control.OutputMessageId, "reply-a")));
+        using var chat = new CaptureHandler(async (sent, _) => {
+            var response = ChatV02Samples.Ok(sent, control.OutputMessageId, "reply-a");
+            Trace(caseId + "-chat-response", new { StatusCode = (int)response.StatusCode,
+                Body = await response.Content.ReadAsStringAsync() });
+            return response;
+        });
         using var line = new CaptureHandler((_, _) => Task.FromResult(LineReplySamples.SuccessResponse()));
         using var host = new GatewayApplicationFactory(chat, line);
         host.Settings["Character:Id"] = control.CharacterId;
@@ -73,7 +78,8 @@ public sealed class WebhookContractTests : ExternalFlowTest
         Record(caseId, host, control, controlBody, LineWebhookSamples.Sign(controlBody),
             new { Role = "control", ChatStatus = 200, LineStatus = 200, Text = "reply-a" });
         Record(caseId, host, data, body, LineWebhookSamples.Sign(body),
-            new { Role = "excluded", ExpectedStatus = 200, AdditionalChat = 0, AdditionalLine = 0, TotalChat = 1, TotalLine = 1 });
+            new { Role = "excluded", ExpectedStatus = 200, AdditionalChat = 0, AdditionalLine = 0, TotalChat = 1, TotalLine = 1 },
+            responseOutputId: control.OutputMessageId);
         using var client = host.CreateClient();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var normal = LineWebhookSamples.Incoming(controlBody, LineWebhookSamples.Sign(controlBody));

@@ -21,6 +21,7 @@ internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::
         ["Character:Id"] = "character-" + Guid.NewGuid().ToString("N"),
         ["Chat:Http:EndpointTemplate"] = "",
         ["Chat:Http:BaseUrl"] = "https://chat.test/",
+        ["App:BaseUrl"] = "https://app.test/",
         ["Chat:Http:Endpoint"] = "/chat/v0.2/generate-replies",
         ["Chat:RequestTimeoutSeconds"] = "1",
         ["Line:ChannelSecret"] = LineWebhookSamples.Secret,

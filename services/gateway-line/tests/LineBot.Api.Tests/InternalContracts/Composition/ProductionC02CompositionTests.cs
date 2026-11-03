@@ -31,7 +31,7 @@ public sealed class ProductionC02CompositionTests : DiagnosticTest
         Assert.Same(reply, scope.ServiceProvider.GetRequiredService<ILineReplyService>());
         factory.Queue.TryEnqueue(data.Job());
         await factory.Queue.AfterJob.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await factory.DisposeAsync();
+        await factory.StopWorkerAsync();
         // Assert
         Trace("C02-Internal-07-01-observed", new { ChatType = chat.GetType().FullName, ReplyType = reply.GetType().FullName, Chat = chat.Calls.Select(c => new { c.Request, CanBeCanceled = c.Token.CanBeCanceled, IsCancellationRequested = c.Token.IsCancellationRequested }).ToArray(), Reply = reply.Calls.Select(c => new { c.Token, c.Messages, c.EventId, c.Redelivery, CanBeCanceled = c.Cancellation.CanBeCanceled, IsCancellationRequested = c.Cancellation.IsCancellationRequested }).ToArray(), ChatHttpCount = factory.ChatHttp.Requests.Count, LineHttpCount = factory.LineHttp.Requests.Count });
         Assert.Single(chat.Calls); Assert.Single(reply.Calls);

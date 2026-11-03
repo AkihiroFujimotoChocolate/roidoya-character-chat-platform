@@ -21,7 +21,10 @@ public sealed class ChatHttpResponseContractTests : ExternalFlowTest
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var chat = new CaptureHandler(async (sent, token) => {
             await release.Task.WaitAsync(token);
-            return ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText);
+            var response = ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText);
+            Trace("C02-External-06-01-chat-response", new { StatusCode = (int)response.StatusCode,
+                Body = await response.Content.ReadAsStringAsync() });
+            return response;
         });
         using var line = new CaptureHandler((_, _) => Task.FromResult(LineReplySamples.SuccessResponse()));
         using var host = new GatewayApplicationFactory(chat, line);

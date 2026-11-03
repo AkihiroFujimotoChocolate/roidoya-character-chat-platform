@@ -19,8 +19,16 @@ public sealed class ChatHttpRequestContractTests : ExternalFlowTest
     {
         // Arrange
         var data = ExternalSamples.Random(LineWebhookSamples.RichText);
-        using var chat = new CaptureHandler((sent, _) => Task.FromResult(ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText)));
-        using var line = new CaptureHandler((_, _) => Task.FromResult(LineReplySamples.SuccessResponse()));
+        using var chat = new CaptureHandler(async (sent, _) => {
+            var response = ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText);
+            Trace("C02-External-01-01-chat-response", new { StatusCode = (int)response.StatusCode,
+                Body = await response.Content.ReadAsStringAsync() });
+            return response;
+        });
+        using var line = new CaptureHandler((received, _) => {
+            Trace("C02-External-01-01-line-request", received);
+            return Task.FromResult(LineReplySamples.SuccessResponse());
+        });
         using var host = new GatewayApplicationFactory(chat, line);
         host.Settings["Character:Id"] = data.CharacterId;
         host.Settings["Chat:RequestTimeoutSeconds"] = "5";
@@ -57,7 +65,12 @@ public sealed class ChatHttpRequestContractTests : ExternalFlowTest
         var ids = new List<(string Interaction, string Message)>();
         Trace("C02-External-03-01", new { First = first, Second = second, ExpectedChatCountPerHost = 1, ExpectedLineCountPerHost = 1 });
         foreach (var data in new[] { first, second }) {
-            using var chat = new CaptureHandler((sent, _) => Task.FromResult(ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText)));
+            using var chat = new CaptureHandler(async (sent, _) => {
+                var response = ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText);
+                Trace("C02-External-03-01-chat-response", new { StatusCode = (int)response.StatusCode,
+                    Body = await response.Content.ReadAsStringAsync() });
+                return response;
+            });
             using var line = new CaptureHandler((_, _) => Task.FromResult(LineReplySamples.SuccessResponse()));
             using var host = new GatewayApplicationFactory(chat, line);
             host.Settings["Character:Id"] = data.CharacterId;

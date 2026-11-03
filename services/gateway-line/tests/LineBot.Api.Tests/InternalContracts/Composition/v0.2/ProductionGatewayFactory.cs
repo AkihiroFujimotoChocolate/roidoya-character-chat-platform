@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
 namespace LineBot.Api.Tests.InternalContracts.Composition.V02;
@@ -50,7 +51,9 @@ internal sealed class ProductionGatewayFactory : WebApplicationFactory<global::P
             services.RemoveAll<IUserLockService>(); services.AddSingleton<IUserLockService>(new TestLock());
             services.RemoveAll<IIdempotencyService>(); services.AddSingleton<IIdempotencyService>(new TestIdempotency());
             services.AddSingleton<HttpClient>(_ => ChatHttp.Client());
-            services.AddHttpClient<ILineReplyService, LineReplyService>().ConfigurePrimaryHttpMessageHandler(() => LineHttp);
+            services.ConfigureAll<HttpClientFactoryOptions>(options => {
+                options.HttpMessageHandlerBuilderActions.Add(b => b.PrimaryHandler = new Router(ChatHttp, LineHttp));
+            });
             if (ChatOverride is not null) { services.RemoveAll<IChatService>(); services.AddSingleton<IChatService>(ChatOverride); }
             if (ReplyOverride is not null) { services.RemoveAll<ILineReplyService>(); services.AddSingleton<ILineReplyService>(ReplyOverride); }
         });
@@ -60,6 +63,18 @@ internal sealed class ProductionGatewayFactory : WebApplicationFactory<global::P
         foreach (var worker in workers) {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await worker.StopAsync(deadline.Token);
+        }
+    }
+    private sealed class Router(CaptureHandler chat, CaptureHandler line) : HttpMessageHandler
+    {
+        private readonly HttpMessageInvoker _chat = new(chat, disposeHandler: false);
+        private readonly HttpMessageInvoker _line = new(line, disposeHandler: false);
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
+            (request.RequestUri?.Host == "api.line.me" ? _line : _chat).SendAsync(request, token);
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { _chat.Dispose(); _line.Dispose(); }
+            base.Dispose(disposing);
         }
     }
 }

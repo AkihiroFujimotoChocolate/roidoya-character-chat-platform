@@ -24,7 +24,12 @@ public sealed class ChatRoutingContractTests : ExternalFlowTest
     {
         // Arrange
         var data = ExternalSamples.Random();
-        using var chat = new CaptureHandler((sent, _) => Task.FromResult(ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText)));
+        using var chat = new CaptureHandler(async (sent, _) => {
+            var response = ChatV02Samples.Ok(sent, data.OutputMessageId, data.ReplyText);
+            Trace(caseId + "-chat-response", new { StatusCode = (int)response.StatusCode,
+                Body = await response.Content.ReadAsStringAsync() });
+            return response;
+        });
         using var line = new CaptureHandler((_, _) => Task.FromResult(LineReplySamples.SuccessResponse()));
         using var host = new GatewayApplicationFactory(chat, line);
         host.Settings["Chat:Http:Endpoint"] = endpoint;
