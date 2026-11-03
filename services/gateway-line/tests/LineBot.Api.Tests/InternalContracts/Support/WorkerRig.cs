@@ -79,6 +79,17 @@ internal sealed class WorkerRig : IAsyncDisposable
         _services = services.BuildServiceProvider();
         Worker = new(_services, Logs.For<MessageWorkerService>(), Settings);
     }
+    internal WorkerRig(IConfiguration settings) {
+        Settings = settings;
+        var services = new ServiceCollection();
+        services.AddSingleton<ILocalQueueService>(Queue);
+        services.AddSingleton<IUserLockService>(new TestLock());
+        services.AddSingleton<IIdempotencyService>(new TestIdempotency());
+        services.AddSingleton<IChatService>(Chat);
+        services.AddSingleton<ILineReplyService>(Reply);
+        _services = services.BuildServiceProvider();
+        Worker = new(_services, Logs.For<MessageWorkerService>(), Settings);
+    }
     internal async Task RunAsync(QueueItem item) {
         Queue.TryEnqueue(item);
         await Worker.StartAsync(CancellationToken.None);
