@@ -27,6 +27,12 @@ public class QueueItem
     public string ReplyToken { get; set; } = string.Empty;
     public string UserKey { get; set; } = string.Empty;
     public string MessageText { get; set; } = string.Empty;
+    public string InteractionId { get; set; } = string.Empty;
+    public string ChannelType { get; set; } = string.Empty;
+    public string ChannelInstanceId { get; set; } = string.Empty;
+    public string ActorId { get; set; } = string.Empty;
+    public string CharacterId { get; set; } = string.Empty;
+    public string InputMessageId { get; set; } = string.Empty;
     public bool IsRedelivery { get; set; }
     public DateTime QueuedAt { get; set; } = DateTime.UtcNow;
 }
@@ -35,6 +41,12 @@ public class ChatServiceRequest
 {
     public string? RequestId { get; set; }
     public string MessageText { get; set; } = string.Empty;
+    public string InteractionId { get; set; } = string.Empty;
+    public string ChannelType { get; set; } = string.Empty;
+    public string ChannelInstanceId { get; set; } = string.Empty;
+    public string ActorId { get; set; } = string.Empty;
+    public string CharacterId { get; set; } = string.Empty;
+    public string InputMessageId { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 20;
     public int MaxCharsPerMessage { get; set; } = 1000;
     public string ConversationId { get; set; } = string.Empty;
