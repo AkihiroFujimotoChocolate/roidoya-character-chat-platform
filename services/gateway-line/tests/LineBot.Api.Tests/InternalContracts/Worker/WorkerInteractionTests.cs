@@ -79,20 +79,26 @@ public sealed class WorkerInteractionTests : DiagnosticTest
         await using var rig = new WorkerRig();
         Trace("Internal-08-01", new { Values = data, WaitLimitSeconds = 10 }, rig.Settings);
         var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         rig.Chat.Respond = async (_, token) => {
-            using var registration = token.Register(() => cancelled.TrySetResult());
-            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            using var registration = token.Register(() => { cancelled.TrySetResult(); hold.TrySetCanceled(token); });
+            ready.TrySetResult();
+            await hold.Task;
             throw new InvalidOperationException("The cancellable wait must not finish normally.");
         };
         rig.Queue.TryEnqueue(data.Job());
         // Act
+        try {
         await rig.Worker.StartAsync(CancellationToken.None);
-        await rig.Chat.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await rig.StopAsync();
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         // Assert
         Assert.True(Assert.Single(rig.Chat.Calls).Token.IsCancellationRequested);
         Assert.Empty(rig.Reply.Calls);
+        } finally { hold.TrySetCanceled(); await rig.StopAsync(); }
+        Trace("Internal-08-01-observed", new { Chat = rig.Chat.Calls.Select(c => new { c.Request, CanBeCanceled = c.Token.CanBeCanceled, IsCancellationRequested = c.Token.IsCancellationRequested }).ToArray(), Reply = rig.Reply.Calls.Select(c => new { c.Token, c.Messages, c.EventId, c.Redelivery, CanBeCanceled = c.Cancellation.CanBeCanceled, IsCancellationRequested = c.Cancellation.IsCancellationRequested }).ToArray() });
     }
 
     [Fact(DisplayName = "Internal-09: Stopping Worker cancels the token received by reply")]
@@ -104,20 +110,26 @@ public sealed class WorkerInteractionTests : DiagnosticTest
         await using var rig = new WorkerRig();
         Trace("Internal-09-01", new { Values = data, WaitLimitSeconds = 10 }, rig.Settings);
         var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         rig.Reply.Respond = async token => {
-            using var registration = token.Register(() => cancelled.TrySetResult());
-            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            using var registration = token.Register(() => { cancelled.TrySetResult(); hold.TrySetCanceled(token); });
+            ready.TrySetResult();
+            await hold.Task;
             return true;
         };
         rig.Queue.TryEnqueue(data.Job());
         // Act
+        try {
         await rig.Worker.StartAsync(CancellationToken.None);
-        await rig.Reply.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await rig.StopAsync();
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         // Assert
         Assert.True(Assert.Single(rig.Reply.Calls).Cancellation.IsCancellationRequested);
         Assert.True(Assert.Single(rig.Chat.Calls).Token.IsCancellationRequested);
+        } finally { hold.TrySetCanceled(); await rig.StopAsync(); }
+        Trace("Internal-09-01-observed", new { Chat = rig.Chat.Calls.Select(c => new { c.Request, CanBeCanceled = c.Token.CanBeCanceled, IsCancellationRequested = c.Token.IsCancellationRequested }).ToArray(), Reply = rig.Reply.Calls.Select(c => new { c.Token, c.Messages, c.EventId, c.Redelivery, CanBeCanceled = c.Cancellation.CanBeCanceled, IsCancellationRequested = c.Cancellation.IsCancellationRequested }).ToArray() });
     }
 
     [Fact(DisplayName = "Internal-12: Failed delivery is not reported as successful processing")]
