@@ -9,42 +9,39 @@ using LineBot.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
-builder.Services.AddHttpClient<HttpChatService>();
+builder.Services.AddHttpClient<HttpV01ChatService>();
+builder.Services.AddHttpClient<HttpV02ChatService>();
 builder.Services.AddHttpClient<ILineReplyService, LineReplyService>();
 builder.Services.AddSingleton<ILocalQueueService, LocalQueueService>();
 builder.Services.AddSingleton<IUserLockService, UserLockService>();
 builder.Services.AddSingleton<IIdempotencyService, IdempotencyService>();
 
-// Register chat service based on mode
 builder.Services.AddScoped<IChatService>(serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var chatMode = configuration.GetValue<string>("Chat:Mode", "Echo");
-    
-    return (chatMode ?? "Echo").ToLowerInvariant() switch
+    var apiVersion = configuration.GetValue<string>("Chat:ApiVersion", "0.1");
+    return apiVersion switch
     {
-        "http" => serviceProvider.GetRequiredService<HttpChatService>(),
-        "echo" => serviceProvider.GetRequiredService<EchoChatService>(),
-        _ => throw new InvalidOperationException($"Unsupported Chat:Mode: {chatMode}")
+        "0.1" => serviceProvider.GetRequiredService<HttpV01ChatService>(),
+        "0.2" => serviceProvider.GetRequiredService<HttpV02ChatService>(),
+        _ => throw new InvalidOperationException($"Unsupported Chat:ApiVersion '{apiVersion}'.")
     };
 });
 
-// Register individual chat services
-builder.Services.AddScoped<EchoChatService>();
-builder.Services.AddScoped<HttpChatService>();
+builder.Services.AddScoped<HttpV01ChatService>();
+builder.Services.AddScoped<HttpV02ChatService>();
 builder.Services.AddHostedService<MessageWorkerService>();
 
 var app = builder.Build();
 
 // Health probe
-app.MapGet("/", (IConfiguration cfg) => 
+app.MapGet("/", (IConfiguration cfg) =>
 {
-    var chatMode = cfg.GetValue<string>("Chat:Mode", "Echo");
     var platform = cfg.GetValue<string>("Runtime:Platform", "Local");
-    return Results.Ok($"LINE Webhook Gateway - {chatMode} Mode ({platform})");
+    return Results.Ok($"LINE Webhook Gateway ({platform})");
 });
 
-// POST /line/webhook — enhanced implementation with Echo Mode
+// POST /line/webhook
 app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILoggerFactory lf, 
     ILocalQueueService queueService, IUserLockService lockService, ILineReplyService replyService) =>
 {
@@ -125,7 +122,7 @@ app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILogger
     {
         try
         {
-            await ProcessWebhookEvent(webhookEvent, queueService, lockService, replyService, cfg, log, requestId);
+            await ProcessWebhookEvent(webhookEvent, webhookRequest.Destination, queueService, lockService, replyService, cfg, log, requestId);
         }
         catch (Exception ex)
         {
@@ -137,7 +134,7 @@ app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILogger
     return Results.Ok();
 });
 
-async Task ProcessWebhookEvent(WebhookEvent webhookEvent, ILocalQueueService queueService, 
+async Task ProcessWebhookEvent(WebhookEvent webhookEvent, string destination, ILocalQueueService queueService,
     IUserLockService lockService, ILineReplyService replyService, IConfiguration cfg, ILogger log, string requestId)
 {
     // Event filtering - only process text message events that are not in standby mode
@@ -199,6 +196,16 @@ async Task ProcessWebhookEvent(WebhookEvent webhookEvent, ILocalQueueService que
         QueuedAt = DateTime.UtcNow
     };
 
+    if (cfg.GetValue<string>("Chat:ApiVersion", "0.1") == "0.2")
+    {
+        queueItem.InteractionId = Guid.NewGuid().ToString();
+        queueItem.ChannelType = "line";
+        queueItem.ChannelInstanceId = destination;
+        queueItem.ActorId = "line-user-" + webhookEvent.Source.UserId;
+        queueItem.CharacterId = cfg["Character:Id"] ?? string.Empty;
+        queueItem.InputMessageId = Guid.NewGuid().ToString();
+    }
+
     if (queueService.TryEnqueue(queueItem))
     {
         log.LogInformation("Enqueued message for processing, WebhookEventId={WebhookEventId}, QueueSize={QueueSize}, RequestId={RequestId}", 
@@ -219,3 +226,7 @@ async Task ProcessWebhookEvent(WebhookEvent webhookEvent, ILocalQueueService que
 }
 
 app.Run();
+
+public partial class Program
+{
+}
