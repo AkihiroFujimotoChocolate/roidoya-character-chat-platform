@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
 **Status:** Public Edition\
-**Edition:** #8\
-**Publication date:** 2026-10-07 (Asia/Tokyo)\
+**Edition:** #9\
+**Publication date:** 2026-11-10 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
@@ -11,7 +11,7 @@
 
 ## Abstract
 
-Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory and relationship state, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, authorized creator/operator intervention without depending on unconstrained model autonomy, and independent Character-integrity evaluation that separates typed evidence, policy decisions, durable-state commits, and final egress from Character generation. It additionally specifies contract-scoped build selection, artifact exclusion verification, and developer-provided environment extensions in independently selected programming languages with explicit conformance and authority boundaries. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, typed probabilistic decision models, and model APIs.
+Roidoya Character Chat Platform (RCCP) is an engineering architecture for building and operating production character-chat services across multiple interaction channels while keeping channel transport, character behavior, durable continuity, orchestration, model access, tools, linguistic processing, policy evaluation, affect state, expression rendering, and operational controls replaceable and independently evolvable. This document specifies implementable responsibility boundaries, stable interaction contracts, creator-editable workflow publication, persistent memory, relationship state and context-dependent recollection, ontology and knowledge-graph-backed continuity, multi-instance ordering and idempotency, recoverable external effects, replay and migration, provider-neutral model/tool mediation, consent-scoped cross-channel identity, multi-party and character-to-character conversation, public-room continuity, layered input/output rule evaluation, language detection and language policy, prompt-injection-resistant execution boundaries, target-specific character emotion, capability-aware structured expression, cyclic world observation and action resolution, Character-initiated follow-up, authorized creator/operator intervention without depending on unconstrained model autonomy, and independent Character-integrity evaluation that separates typed evidence, policy decisions, durable-state commits, and final egress from Character generation. It additionally specifies contract-scoped build selection, artifact exclusion verification, and developer-provided environment extensions in independently selected programming languages with explicit conformance and authority boundaries. It includes complete processing embodiments, alternative implementations, state machines, technical combinations, and functional figures using application code, workflow engines, managed cloud services, messaging platforms, queues, knowledge formats, graph or non-graph stores, language-processing libraries, rule engines, classifiers, typed probabilistic decision models, and model APIs.
 
 **Keywords:** character chat platform; conversational agent; channel adapter; durable workflow; creator-editable workflow; immutable publication revision; character memory; relationship state; ontology; knowledge graph; Open Knowledge Format; multi-party conversation; many-to-many conversation; character-to-character conversation; idempotent webhook processing; conversation ordering; effect journal; cross-channel identity; topic-scoped consent; provider-neutral model service; tool mediation; language identification; fastText language identification; morphological analysis; MeCab; pattern matching; policy rule engine; prohibited-term detection; safe-span exception; prompt injection; structured model output; affect state; target-specific emotion; facial expression; gesture; animation cue; channel capability mapping; authoritative world state; observer-scoped projection; character belief; action intent; action resolution; world event; creator intervention; operator intervention; bounded autonomy; character integrity; independent guard; typed judgment; trajectory-aware evaluation; state commit guard; egress guardian; probability-domain separation; live-chat character system; derived-state migration; execution provenance; contract-scoped build; resolved composition; artifact exclusion verification; language-neutral extension; extension conformance; environment binding
 
@@ -1097,6 +1097,22 @@ An event-driven embodiment stores explicit state and starts a new workflow when 
 
 Both approaches can reuse the same Character, Memory, State, Tool, and Model services.
 
+A Character can follow up on an Actor's request, a recorded promise, or a World Event observed under Section 90. A versioned workflow identifies eligible triggers and recipients within authorized relationship and memory scopes, for example Actors with an active plan or a request for updates. Within the applicable cost budget under Section 92.2, it can select a recollection under Section 74.7 and propose a topic and delivery window for each eligible recipient. Timers and observations can also use a deterministic topic template keyed by source record and recipient.
+
+A pending follow-up records a stable intent identity, Character, recipient, permitted audience, purpose and topic, source record and revision, relevant recollection references, policy revision, earliest send time, expiry, and lifecycle state. A unique key over the service, Character, recipient, triggering occurrence and purpose suppresses duplicate intents on replay. Related intents can share a topic limit.
+
+| Delivery embodiment | Trigger and disposition |
+| --- | --- |
+| Scheduled or immediate outbound contact | Attempt delivery at a scheduled time or on receipt of the observation. During quiet hours, defer to the next eligible time before expiry. |
+| Continuation in the next conversation | Keep the topic pending until it fits an eligible inbound exchange, then raise it in a reply. |
+| Outbound contact with continuation as a fallback | Prefer outbound contact. When outbound delivery is deferred or known to be unavailable, the same intent can become eligible for the next conversation. |
+
+Both paths claim the same intent revision. The claim binds the conversation revision and reserves any applicable outbound frequency budget. Inbound admission and delivery reservation share an ordering boundary, for example a per-conversation worker or a transaction that compares both revisions. Before reservation, an accepted inbound turn can satisfy the purpose, pause the intent, or invalidate the claim for reevaluation.
+
+Persist the attempt and its delivery identity before dispatch under Sections 38 and 100.2.1. Immediately before dispatch, the Channel Adapter verifies the reservation, source revision, expiry, current consent, audience, destination and delivery authorization for the selected output. Cancel expired or withdrawn intents, defer temporarily ineligible intents, and reevaluate replacements against any changed source or audience.
+
+A confirmed handoff at the declared delivery boundary completes the intent. An unknown outcome holds both paths until the attempt is reconciled. A known transient failure permits a bounded retry with the same delivery identity and fresh authorization. After a confirmed failure is recorded, policy can instead make the intent eligible for continuation. Section 70.1 gives a worked example.
+
 ## 21. Security and trust boundaries
 
 Security responsibilities should follow component boundaries.
@@ -1435,17 +1451,7 @@ Another implementation can use a modular monolith and preserve the same logical 
 
 ## 27. Relationship to the current public implementation
 
-At the time this draft was prepared, the public repository contains an early implementation centered on:
-
-- a C#/.NET LINE gateway;
-- a minimal channel-agnostic chat layer;
-- a text-focused versioned HTTP contract;
-- local echo and HTTP forwarding behavior;
-- specification material for queueing, locking, idempotency, rate control, and Azure-oriented deployment.
-
-The current physical `chat-layer` service is not intended to permanently define the future Orchestration/Core Services boundary.
-
-The current LINE gateway is a useful concrete Channel Adapter reference, but future Channel Adapters may use different infrastructure and deployment arrangements while preserving the responsibility boundary described here.
+This disclosure includes designs that are not yet reflected in the public implementation.
 
 ## 28. Non-requirements
 
@@ -1482,12 +1488,6 @@ The same architecture can be extended to:
 These extensions do not require the platform-wide message contract to adopt any single model provider's native request format.
 
 ## 30. Public reference material
-
-For implementation-specific details already present in the repository, see the public project documentation, including:
-
-- `README.md`
-- the source code under `services/gateway-line/`
-- the source code under `services/chat-layer/`
 
 Official external platform documentation should be consulted for the current behavior and limits of each integrated channel, cloud service, model provider, workflow engine, database, or other dependency.
 
@@ -4354,6 +4354,10 @@ For a direct-chat interaction:
 6. The Model Service receives a provider-neutral request plus a context manifest.
 7. Generated memory candidates are validated before entering authoritative memory.
 
+A Character receives a scoped observation that a harbor festival was cancelled. A food cue from one Actor can bring to mind an authored memory of running a stall with its grandmother. In a private exchange with an Actor who planned to attend with the Character, the shared promise can take precedence and the stall memory can inform a wistful tone. Under Section 74.7, feature values `c=0.8`, `i=1`, `r=0`, `m=0.8` give the stall memory `6.0`, while `c=0.8`, `i=0`, `r=1`, `m=0.7` give the eligible promise `6.9`. The current cancellation is supplied separately from the recollections by the scoped observation.
+
+The observation can trigger a Section 20 follow-up for the Actor with the active plan. The intent records the observation, promise and permitted private destination. If the Actor brings up the cancellation before reservation, the handler satisfies the purpose in the reply. During quiet hours, an enabled fallback can hold the topic for an eligible private conversation before expiry. A correction to the cancellation before dispatch requires reevaluation against the new observation revision.
+
 If the graph or vector projection is unavailable, policy can fall back to direct document lookup, return a reduced-context response, or fail the interaction. It does not silently use private or stale data from an unrelated scope.
 
 ### 70.2 Reference Embodiment R5 — Discord group scene with two actors and two characters
@@ -4928,6 +4932,21 @@ In the rule-led embodiment, a deterministic rule maps workflow state to exact co
 ### 74.7 Hybrid retrieval
 
 The hybrid embodiment executes query-led, graph-led, and rule-led retrieval in parallel or sequence. Required rule results are reserved first. Remaining context budget is allocated among graph, full-text, vector, recent-history, and memory results. Duplicate source records are merged by stable identifier, not by text equality alone.
+
+A Character's recollection can start from a cue in the current or recent turns, a scheduled occurrence, or an observed World Event. The workflow resolves topic, event, place and participant identities from the cue and context. For example, a reference to “this year” can resolve to the festival already being discussed. Section 74.4 can locate related passages, Section 74.5 can follow a place or participant to episodes, and Section 74.6 can resolve a pending promise directly. If the referenced event remains ambiguous, the workflow can ask for clarification in a conversation, respond with verified context alone, or defer a scheduled follow-up.
+
+Recollection candidates can come from the Character's authored past, its observations and participation in resolved World Events, or interactions with the Actor. A candidate refers to the source and revision, the experiencing or observing Character, any related event and participant identities, the memory's scope and validity, and the information it carries, such as a gist or supported details. Separate references distinguish experienced episodes, reports, beliefs and authoritative world knowledge. Recording a new first-person episode requires a source that establishes the Character's participation in or firsthand observation of the event, plus the memory-write checks in Section 74.8. Retrieval alone supplies context. The memory policy resolves the acting Character, interlocutor, current scene, audience and permitted purpose before candidates are ranked. It makes separate eligibility decisions for influencing behavior and for being revealed to the audience. The same event can yield different admissible recollections for different Characters under Sections 88–90.
+
+A Character Publication can specify which cues its traits and interests make salient, which experiences carry lasting importance, and how a relationship changes the preference for shared episodes.
+
+| Selection embodiment | Processing after eligibility checks |
+| --- | --- |
+| Ordered rules | Apply rules in a published order to cue and candidate metadata. A rule can prefer an active promise involving the interlocutor, then a memory matching a Character trait or interest, then a relevant World observation. Select matching candidates within the context budget, breaking ties by stable record identity. A required story fact can use the exact lookup in Section 74.6. |
+| Weighted ranking | Normalize cues and record features to declared ranges and rank by a versioned weighted sum. An illustrative policy uses `4c + 2i + 3r + m`, where `c` is cue relevance, `i` affinity with a Character trait or interest, `r` shared experience or obligation with this interlocutor, and `m` persistent importance, each on a zero-to-one scale. For example, a policy can use normalized retrieval relevance for `c`, a creator-authored affinity between a topic and a trait or interest for `i`, a matching active promise or shared-event tag for `r`, and the memory record's importance for `m`. A minimum cue relevance gates ranking, and a stable identity breaks score ties. The workflow selects up to a declared count and token budget. |
+| Model-assisted selection | Provide a bounded set of eligible candidate IDs with their permitted summaries and use modes, plus Character and relationship cues. Request an ordered list of IDs with a use mode for each. Validate membership, modes, duplicates and budget. On timeout or invalid output, use the configured deterministic order or continue with the required facts and recent conversation alone. |
+| Combined selection | Reserve mandatory exact matches, rank eligible optional items by rules or weights, and apply bounded model-assisted selection to the highest-ranked subset. Enforce the same eligibility, use-mode and budget checks on the combined result. |
+
+Record the selected IDs, source revisions, policy revision and permitted use modes in the Context Manifest. Generation can recount a supported episode in the first person or attribute a report to its source, using only details supported by the record and permitted for the audience. An internal-use gist can inform affect and expression under Section 83, with final checks on text and rendered expression for indirect disclosure. If a recollection expires, is corrected, or loses permission before use, reselect from current eligible candidates and reevaluate dependent output under Sections 82.5.1 and 100.2.1 where applicable. Section 70.1 illustrates different choices for the same topic.
 
 ### 74.8 Memory candidate extraction and commit
 
