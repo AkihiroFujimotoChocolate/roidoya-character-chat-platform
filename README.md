@@ -34,13 +34,11 @@ The Technical Disclosure covers the cumulative design space below, not only the 
 
 This index covers concrete designs for persistent, evolving character experiences shaped by creators. Memory sharing and autonomous behavior remain subject to the service's consent, access, and authority boundaries.
 
-## Public Edition #8 highlights
+## Public Edition #9 highlights
 
-Public Edition #8 updates existing designs for reusing character memories, replacing evaluators, and checking dialogue together with voice, expression, assets, and timing before delivery.
+This edition shows how the same topic can bring different memories to mind depending on whom a Character is talking to. It also shows how a promise or an observed story event can prompt a Character to get in touch or bring up the topic in the next conversation.
 
-Persistent summaries and handoffs retain governed source lineage and are revalidated under current permissions. Evaluator adapters preserve task meaning and unavailable metadata. Compound output is bound to its inspected representation, with durable delivery records for partial streaming and unknown outcomes.
-
-See Sections 82.5.1, 98.1.1, and 100.2.1, together with the processing and evaluation procedures in Sections 101–102, in the [Technical Disclosure](docs/publications/rccp-architecture-and-technical-disclosure.md). The cumulative chapter, figure, embodiment, combination, and proposition identifiers are retained. Fixed Markdown, PDF, and checksums are available in the [Public Edition #8 release](https://github.com/AkihiroFujimotoChocolate/roidoya-character-chat-platform/releases/tag/rccp-technical-disclosure-edition-008).
+The updated designs cover [how a Character selects memories (§74.7)](docs/publications/rccp-architecture-and-technical-disclosure.md#747-hybrid-retrieval), [how it follows up (§20)](docs/publications/rccp-architecture-and-technical-disclosure.md#20-scheduled-and-proactive-character-behavior), and [a worked example connecting the two (§70.1)](docs/publications/rccp-architecture-and-technical-disclosure.md#701-reference-embodiment-r4--okf-world-bundle-graph-retrieval-and-actor-memory-overlay). Fixed Markdown, PDF, and checksums are available in the [Public Edition #9 release](https://github.com/AkihiroFujimotoChocolate/roidoya-character-chat-platform/releases/tag/rccp-technical-disclosure-edition-009).
 
 ## License
 
