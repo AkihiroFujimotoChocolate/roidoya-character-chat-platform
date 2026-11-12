@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
 **Status:** Public Edition\
-**Edition:** #9\
-**Publication date:** 2026-11-10 (Asia/Tokyo)\
+**Edition:** #10\
+**Publication date:** 2026-11-12 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
@@ -732,6 +732,29 @@ One embodiment separates draft and active workflow revisions:
 9. Rollback changes the pointer to a previous revision without reverting unrelated infrastructure.
 
 Alternative embodiments omit approval or preview for low-risk environments while preserving versioned activation.
+
+### 11.3 Scene progression from free-form dialogue
+
+A creator publishes scene IDs, reply instructions, knowledge references, and memory scopes in one workflow revision (Section 11.2). Each transition defines a transition ID, source and destination scene IDs, an intent label, and state predicates. In this example, `enter_observatory` maps `enter_now` at `reception` to `observatory` when the actor has a valid pass and the room is open. The conversation state stores the scene, pass and room status, and state revision.
+
+1. **Select.** Reuse the stored result for a duplicate `interaction_id`. For a new interaction, pin the workflow revision and read the conversation state. Pass the utterance, current scene, and permitted recent turns to a decision procedure below. Map an intent to matching outgoing transitions or look up a returned transition ID.
+2. **Draft.** Check the candidates against the workflow, actor permissions, and recorded state. Use the reply instructions and permitted knowledge and memory of the destination for a unique eligible transition. For other outcomes, reply in the current scene and ask for clarification when selection is ambiguous. On a draft timeout, keep the scene and use its fallback reply.
+3. **Commit and deliver.** The state owner rechecks permissions and conditions against the expected revision. It atomically records the result, workflow and state revisions, output intent, and any scene change under a unique `(conversation_id, interaction_id)` key. If the recheck fails, discard the draft and reevaluate against fresh state, deferring after bounded retries. After commit, finalize the reply with any newly authorized scene content or reuse the permitted draft if finalization fails. The Egress Guardian binds delivery to the recorded result and audience. The outbox retries delivery using the same output intent (Sections 38 and 101).
+
+Each procedure uses the same validation and commit path. Missing or invalid results lead to clarification. The workflow versions label mappings and thresholds.
+
+| Procedure | Candidate selection |
+| --- | --- |
+| Typed choice | Send descriptions for `enter_now`, `ask_access`, and `other`. Accept a listed label when its probability leads the next-highest by the configured margin. Clarify on a smaller margin. |
+| Typed yes/no | Ask whether the actor requests entry now. At or above the upper yes-probability threshold, return `enter_now`. At or below the lower threshold, stay in the current scene. Clarify between thresholds. |
+| Schema-constrained language model | Provide descriptions of outgoing transitions. Validate a JSON `selection` field whose enum contains the outgoing transition IDs and `ask_access`, `other`, and `unclear`. |
+| Trained classifier | Score the three intent labels from utterance tokens and scene ID. Accept the highest-scoring label when its score and margin meet the thresholds. Clarify otherwise. |
+| Deterministic rules | Map full normalized phrases or declared event codes to intents. “Let me in now” maps to `enter_now` and “What do I need to enter?” maps to `ask_access`. Stay on no match and clarify on conflicting matches. |
+| Rules followed by typed choice | Use a unique rule match. Otherwise run the typed choice procedure with the same context. |
+
+Section 98 defines the typed evaluator contracts. In a shared World variant, submit an `ActionIntent` for entry and any coupled inventory change to the World owner (Section 89.4). Derive the new scene from the committed entry event and bind the reply to that result.
+
+“Let me in now” at revision 42 can yield “Come in” after entry commits at revision 43. If the room closes first, the revision check forces reevaluation and the reply reflects the closed room.
 
 ## 12. Reliability in multi-instance deployments
 
