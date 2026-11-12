@@ -34,11 +34,11 @@ The Technical Disclosure covers the cumulative design space below, not only the 
 
 This index covers concrete designs for persistent, evolving character experiences shaped by creators. Memory sharing and autonomous behavior remain subject to the service's consent, access, and authority boundaries.
 
-## Public Edition #9 highlights
+## Public Edition #10 highlights
 
-This edition shows how the same topic can bring different memories to mind depending on whom a Character is talking to. It also shows how a promise or an observed story event can prompt a Character to get in touch or bring up the topic in the next conversation.
+This edition describes how a character-chat experience can progress through creator-defined scenes in response to free-form conversation. A worked example selects a scene, prepares a reply, and commits an authorized transition while handling ambiguity and concurrent changes.
 
-The updated designs cover [how a Character selects memories (§74.7)](docs/publications/rccp-architecture-and-technical-disclosure.md#747-hybrid-retrieval), [how it follows up (§20)](docs/publications/rccp-architecture-and-technical-disclosure.md#20-scheduled-and-proactive-character-behavior), and [a worked example connecting the two (§70.1)](docs/publications/rccp-architecture-and-technical-disclosure.md#701-reference-embodiment-r4--okf-world-bundle-graph-retrieval-and-actor-memory-overlay). Fixed Markdown, PDF, and checksums are available in the [Public Edition #9 release](https://github.com/AkihiroFujimotoChocolate/roidoya-character-chat-platform/releases/tag/rccp-technical-disclosure-edition-009).
+[Scene progression (§11.3)](docs/publications/rccp-architecture-and-technical-disclosure.md#113-scene-progression-from-free-form-dialogue) connects typed decisions, language models, classifiers, and rules to the existing workflow, state, and output boundaries. Fixed Markdown, PDF, and checksums are available in the [Public Edition #10 release](https://github.com/AkihiroFujimotoChocolate/roidoya-character-chat-platform/releases/tag/rccp-technical-disclosure-edition-010).
 
 ## License
 
