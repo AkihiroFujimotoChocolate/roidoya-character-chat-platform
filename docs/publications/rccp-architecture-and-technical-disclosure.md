@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
 **Status:** Public Edition\
-**Edition:** #10\
-**Publication date:** 2026-11-12 (Asia/Tokyo)\
+**Edition:** #11\
+**Publication date:** 2026-11-15 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
@@ -515,12 +515,15 @@ The internal contract should not be fixed to one model provider's API.
 
 ### 8.1 Reference interaction envelope
 
-One implementable contract is:
+The following reference envelope illustrates one actor conversing with one Character. A service can use a different Direct Chat wire contract and resolve the same logical scope from an authorized connection or deployment binding. Section 67 describes contract profiles.
 
 ```json
 {
   "request_id": "req:01J...",
   "event_id": "line:event:abc",
+  "scope": {
+    "service_id": "service:example"
+  },
   "origin": {
     "platform": "line",
     "channel_instance": "official-account:primary"
@@ -544,7 +547,7 @@ One implementable contract is:
     ]
   },
   "limits": {
-    "deadline_ms": 20000,
+    "deadline_at": "2026-09-06T00:00:20Z",
     "max_output_messages": 5,
     "max_chars_per_message": 1000
   },
@@ -552,7 +555,15 @@ One implementable contract is:
 }
 ```
 
-The initial text-focused implementation can simplify `content` to a string. A later compatible version can introduce multiple content parts such as text and images.
+`scope.service_id` identifies the logical service under Section 34. When supplied in a request, the receiving boundary validates it against the authorized binding. This example passes effective constraints to the receiving workflow. The example counts output messages per delivery and Unicode scalar values per message. The Channel Adapter checks the Channel-specific measurement of the rendered output before sending. Section 41.1 defines how these constraints are applied.
+
+**Content representations.** One contract uses a typed `content` array from its first version and initially allows only `text` parts. New part types use declared capabilities and the contract's defined unknown-type handling. A sender uses an extension only where the recipient supports it, or uses an explicitly defined fallback. Section 23 describes compatibility and migration.
+
+A separate text contract can use `content: string`. A reader that accepts only the string shape rejects the array shape, and an array-only reader rejects the string shape. A deployment can keep both contract versions and use adapters at their declared boundaries. The text adapter maps a string to one `text` part with the original string as its `text` value. The reverse adapter returns the text for a single supported text part. For other input, it applies a contract-defined fallback or returns an explicit unsupported-content error before delivery. Both adapters validate their input and output schemas. Version selection occurs before decoding the version-specific payload under Sections 18 and 23. An unsupported version is rejected before any state change.
+
+**Revision selection.** A publication revision identifies the published Character, workflow and associated configuration used for an interaction. The contract version selects the wire layout under Section 23. A request-selected profile carries an immutable `publication_revision`. Admission checks that the publication exists, can be loaded and is authorized for the effective service and Character. Admission rejects an unauthorized selection. It rejects or holds an unavailable selection under the profile's admission policy. An internally selected profile omits the field and resolves the publication from the authorized binding at admission or workflow start. If the binding has no eligible publication, that boundary rejects or holds the interaction. Both profiles record the resolved references under Section 58.1.5. The reference envelope above illustrates internal selection.
+
+For compatibility checks between JSON data contracts, see Andrew Habib, Avraham Shinnar, Martin Hirzel, and Michael Pradel, [*Finding Data Compatibility Bugs with JSON Subschema Checking*](https://doi.org/10.1145/3460319.3464796), ISSTA 2021. Their method checks whether one schema accepts every instance allowed by another. An API contract also defines how clients and services interpret valid payloads.
 
 ### 8.2 Reference output envelope
 
@@ -739,7 +750,7 @@ A creator publishes scene IDs, reply instructions, knowledge references, and mem
 
 1. **Select.** Reuse the stored result for a duplicate `interaction_id`. For a new interaction, pin the workflow revision and read the conversation state. Pass the utterance, current scene, and permitted recent turns to a decision procedure below. Map an intent to matching outgoing transitions or look up a returned transition ID.
 2. **Draft.** Check the candidates against the workflow, actor permissions, and recorded state. Use the reply instructions and permitted knowledge and memory of the destination for a unique eligible transition. For other outcomes, reply in the current scene and ask for clarification when selection is ambiguous. On a draft timeout, keep the scene and use its fallback reply.
-3. **Commit and deliver.** The state owner rechecks permissions and conditions against the expected revision. It atomically records the result, workflow and state revisions, output intent, and any scene change under a unique `(conversation_id, interaction_id)` key. If the recheck fails, discard the draft and reevaluate against fresh state, deferring after bounded retries. After commit, finalize the reply with any newly authorized scene content or reuse the permitted draft if finalization fails. The Egress Guardian binds delivery to the recorded result and audience. The outbox retries delivery using the same output intent (Sections 38 and 101).
+3. **Commit and deliver.** The state owner rechecks permissions and conditions against the expected revision. It atomically records the result, workflow and state revisions, output intent, and any scene change under a unique `(service_id, conversation_id, interaction_id)` key in shared storage, or `(conversation_id, interaction_id)` within a service-bound store or partition under Section 34. If the recheck fails, discard the draft and reevaluate against fresh state, deferring after bounded retries. After commit, finalize the reply with any newly authorized scene content or reuse the permitted draft if finalization fails. The Egress Guardian binds delivery to the recorded result and audience. The outbox retries delivery using the same output intent (Sections 38 and 101).
 
 Each procedure uses the same validation and commit path. Missing or invalid results lead to clarification. The workflow versions label mappings and thresholds.
 
@@ -755,6 +766,48 @@ Each procedure uses the same validation and commit path. Missing or invalid resu
 Section 98 defines the typed evaluator contracts. In a shared World variant, submit an `ActionIntent` for entry and any coupled inventory change to the World owner (Section 89.4). Derive the new scene from the committed entry event and bind the reply to that result.
 
 “Let me in now” at revision 42 can yield “Come in” after entry commits at revision 43. If the room closes first, the revision check forces reevaluation and the reply reflects the closed room.
+
+### 11.4 Presenting dialogue-dependent choices under creator policy
+
+At the reception in Section 11.3, the actor jokes that the telescope looks like a giant teapot. While the observatory is open and the actor has a valid pass, the workflow can offer “Ask whether it makes tea” to continue the joke and “Go in and see the telescope” to advance the story. The text input remains available in a conversational Channel. The workflow keeps the authored destination and its entry conditions through subsequent turns in reception. A receptionist and a guide may share the response under Section 75. The workflow can generate speaker-tagged turns together, coordinate separate speaker generators, or combine an authored guide line with an improvised receptionist line. Each form validates the speaker, the facts available to that speaker, and the audience. A joke can remain local to the current exchange. An improvisation with a lasting effect enters the state proposal path, with creator approval where the publication requires it.
+
+The workflow publication defines the local actions and outgoing transitions for each scene. A versioned configuration, stored in database records or configuration documents, identifies the applicable work, Character or scene, the allowed improvisation, and rules for when to offer each choice type and in what proportion. A creator can enable progression choices throughout a scene, limit them to authored milestones, or vary the mix by scene and recent turns. The applicable rules can include Character traits, world facts, event-specific permissions and rules for using past experiences. An authorized creator can also configure prohibited actions and prohibited conditions in the resulting story state. Publication validates the scope, rule references, exceptions and delegated authority under Sections 11.2 and 80.9.
+
+For example, an observatory policy can contain the following entries:
+
+| Condition and scope | Decision category | Configured response |
+| --- | --- | --- |
+| Inside the observatory, a visitor operates the telescope without a guide's supervision, or a proposed change would leave a visitor operating it alone. Discussion and jokes about the telescope are permitted at reception. | Prohibited action or situation | Withhold the option or reject the state change. The guide can offer to operate the telescope with the visitor. |
+| A single-use pass is missing, already spent, or belongs to another actor. | Entry condition not met | Omit the entry option and offer to ask the guide about access. |
+| A reply, choice label or narration represents entry as completed without a committed entry result. | Unconfirmed event | Regenerate or use an approved line that reflects the recorded result. |
+
+A rule record identifies its rule and revision, scope, condition and applicable check stage, category, exceptions and priority. An implementation stores the response in the same record. In a second embodiment, it looks up the response in a separately versioned table by category and applicable scope. In both forms, an exception names the rule it qualifies, and publication checks that the editor can change that rule and that applicable precedence resolves conflicting actions. The independent evaluator identifies relevant actions or situations in generated output and state proposals, including where they involve a secondary Character, narration, or objects. It can also consider the conversation trajectory under Section 99. A creator can permit different responses to the same category, such as an in-character correction, another Character intervening, or a return to the main scene. The Policy Decision Point applies the relevant scoped exceptions and resolves the configured response under Section 98.4. The state owner checks proposed actions and resulting conditions before commit. The Egress Guardian also checks their depiction in the rendered response against the authorized result. A versioned workflow extension implements scene-specific evaluation or response handling when the registered configuration is insufficient. The extension receives the applicable rule and candidate references and returns evidence or a proposed response for the same authority checks.
+
+1. **Build candidates.** Resolve the active workflow and applicable configuration revisions. From the committed scene, permitted recent turns and eligible action or transition definitions, produce local and progression candidates as space and eligibility permit. Each choice has a display label and a server-resolved action or transition reference. In one embodiment, a rule matches the telescope topic and fills a local template from permitted terms. A second template presents the eligible entry transition. In another, a language model receives the eligible references and permitted context and returns structured pairs of reference and label. In a retrieval embodiment, a catalog stores candidate phrases by action reference, topic, locale and scene. The workflow filters by eligibility, ranks matching phrases using the recent topic, and selects up to the configured count by type. A hybrid retrieves those candidates and lets a language model rephrase the labels against the same references, falling back to the retrieved labels if validation fails. The workflow rejects unknown references, removes duplicates and checks that each label describes the bound action without promising its result. It can use a validated template for an ambiguous label or failed generation.
+2. **Inspect and present.** Apply the output checks of Sections 98 and 100 to the reply and labels together, including any narration or secondary speaker. If a label fails, replace it with a permitted template and inspect the result again, or omit the option. When no choice passes, use the permitted reply in the current scene. Persist the eligible choice set within its effective service scope under Section 34, with its issuing interaction, intended audience and selecting actor, conversation, source scene and state revision, workflow and policy revisions, and expiration. A Channel can carry an opaque choice ID as a callback. For a one-use choice the callback resolves to a stable operation identity derived from the issued choice and selecting actor within the effective service scope. A text-only Channel can display the choices as suggested utterances and resolve the actor's next message through Section 11.3. Dispatch uses the current authorization and destination checks of Section 100.2.
+3. **Resolve and apply.** For a callback, authenticate the event, resolve its effective service, and look up the choice ID only in that service's storage scope. Check the selecting actor and conversation against the stored choice before using it. An unresolvable service or choice, or an actor or conversation mismatch, rejects the callback without applying the action. Return the recorded result of a repeated operation through the current delivery checks. For a new operation, check the source scene and choice validity before resolving the action under the active workflow. For either input form, evaluate the requested action and its proposed resulting state against current state, permissions and policy. An expired, withdrawn or ineligible option produces a permitted reply in the current scene and can trigger a refreshed choice set. A change of workflow or policy requires resolving the action under the active revision or issuing fresh choices. A valid transition uses the existing commit path in Section 11.3, including the expected state revision check and duplicate-interaction handling. At commit, the owner checks current authorization, policy and any scoped suspension. In the single-use pass embodiment, entry and one pass consumption commit together under Section 89.4. The transaction checks the actor's ownership and available quantity and records one result for the interaction or one-use choice operation identity. A closed room or conflict leaves the pass unspent. A duplicate returns the recorded result through the current delivery checks. The reply and inventory display derive from the committed result. If the inventory projection lags, the display refreshes from the authoritative revision or marks the update pending. Showing a choice leaves domain state unchanged.
+
+**Memory and intervention.** A scene policy can separately permit recording an encounter, using it in future generation, proposing a persistent state change, and disclosing it to an audience. For example, the policy can preserve an eligible conversation at reception while quarantining a disputed claim that the visitor entered. Section 91.7 describes how a new policy can change future uses of established experiences and how a deployment can change an existing relationship. Section 94.5 describes how an authorized operator can diagnose and repair an affected subset of memory or state.
+
+**Creator and operator controls.** A creator selects a work, Character or scene in an authoring surface, edits delegated conditions, examples, thresholds, exceptions and responses, and previews normal and blocked cases without modifying production state. Validation reports invalid references, conflicting rules and operations outside the assigned role. An authorized reviewer can activate the validated revision for a selected scope under Sections 32 and 91.6. Ordinary changes to registered conditions and responses are applied by publishing configuration.
+
+An operator receiving a report can look up the affected interaction and scope and compare the applicable revisions, allowed diagnostic evidence, proposed action, committed result and recorded delivery outcome. If pass consumption is unreliable, the operator can suspend `enter_observatory` for the affected scope under Section 33 and keep reception conversation available. The suspension takes effect for pending callbacks and in-flight operations that have yet to commit. The state owner checks the current suspension revision at its transaction boundary. The operator compares the corrected revision with the previous one on isolated cases, activates it for a limited scope, and resumes the action after confirming the expected results. The administrative record identifies the operator, affected scope, revisions, and outcome. Restoring a configuration revision controls future decisions. An authorized operator separately previews any correction to a pass already consumed in error, reviews the affected records, and applies the correction with the expected revisions in Section 91.6.
+
+The preview verifies that both directions appear when eligible, a reception joke remains available, and a secondary speaker cannot depict prohibited unsupervised operation as having occurred. A closure or suspension after presentation leaves the visitor in reception and the pass unspent. Repeating a successful delivery or selection does not spend another pass.
+
+**Experience examples.** The following configurations use the same workflow and policy boundaries. Creators can combine or adapt them, for example by offering chapter retries in a continuing adventure or allowing daily conversation after an ending. A deployment can provide samples or templates using these configurations. All configurations validate Character behavior, established world facts, and authored episode facts, including what each speaker knows. The policy also governs use and disclosure of prior experiences. Each form distinguishes a proposed action or depiction from the event and state, if any, that the state owner commits.
+
+| Experience | Example configuration and checks |
+| --- | --- |
+| Continuing conversation | A character and visitor can resume their conversation on another day. The workflow can omit progression choices and still offer optional episodes, such as an annual celebration, keyed to the actor and occurrence to prevent duplicates. The service reserves a turn under the interaction identity when the actor has a remaining allowance, and commits or releases the reservation under its delivery policy. When the last authorized reply is available, an authored closing line or a guarded generated farewell can close the session while continuity remains available under the memory policy. Delivery retries reuse the same allowance operation. When no reply is authorized, the Channel presents an allowed limit notice. |
+| Story with an ending and replay | A visitor can digress in conversation while advancing through authored locations toward one of several endings. Transitions check current scene and qualifying state, including any relationship threshold for the specified participants. The state owner checks the active run identifier before applying a transition and records a completed ending once per run. An authorized replay starts a new run from its configured initial state and copies only approved carryover records, such as an unlocked ending entry. A callback for a different run is rejected or replaced with current choices. |
+| Continuing adventure | The visitor can complete successive quests without a final ending. The action owner checks item ownership, counts and prerequisites and commits the quest outcome and associated item consumption or reward as one result, as with the pass above. The response and inventory view use that result. After a scoped suspension, unrelated quests or ordinary conversation can remain available. |
+
+**Related work.** Orchid-Creator provides a visual authoring environment for scene definitions, conditional transitions and playtesting [1]. Bring Your Own Story generates context-sensitive player choices at runtime for interactive visual novels [2]. NeMo Guardrails provides programmable controls for conversation flow and generated responses [3]. The embodiment above connects configured choice generation and output inspection to action revalidation, durable story and inventory updates, and scoped operational suspension.
+
+1. Zhen Wu et al. “Orchid-Creator: An Authoring Tool Supporting LLM-Driven Interactive Narrative Creation.” CHI, 2026. <https://doi.org/10.1145/3772318.3791426>
+2. Zifan Ye et al. “Bring Your Own Story: Generating Interactive Visual Novels with AI.” IEEE GCCE, 2025. <https://doi.org/10.1109/GCCE65946.2025.11274671>
+3. Traian Rebedea et al. “NeMo Guardrails: A Toolkit for Controllable and Safe LLM Applications with Programmable Rails.” EMNLP System Demonstrations, 2023. <https://aclanthology.org/2023.emnlp-demo.40/>
 
 ## 12. Reliability in multi-instance deployments
 
@@ -817,7 +870,7 @@ Possible controls include:
 - estimated processing delay;
 - model-provider saturation;
 - worker concurrency;
-- per-tenant or per-character quotas;
+- per-service or per-character quotas;
 - channel reply-token deadlines.
 
 When the expected processing delay exceeds the channel's usable reply window, a system may reject, degrade, or switch response mode rather than accepting work that is likely to fail later.
@@ -829,7 +882,7 @@ Rate limits may exist at multiple levels:
 - per channel;
 - per model provider;
 - per tool provider;
-- per tenant/service;
+- per service;
 - per character;
 - per actor;
 - per worker replica;
@@ -1162,7 +1215,7 @@ Secrets are referenced through a secrets-management mechanism or runtime identit
 
 ### 21.5 Data scopes
 
-Memory, state, search, and tools can enforce explicit actor, character, tenant/service, and environment scopes so one character or conversation cannot retrieve another scope's data without authorization.
+Memory, state, search, and tools can enforce explicit service, actor, Character, and environment scopes so one character or conversation cannot retrieve another scope's data without authorization.
 
 ## 22. Observability
 
@@ -1195,7 +1248,7 @@ Stable contracts should evolve independently from internal implementation replac
 Examples include:
 
 - adding optional metadata;
-- adding a new content-part type that older consumers can ignore or reject explicitly;
+- adding a content-part type under an extension rule that preserves existing usage, such as negotiated support or the safe omission of optional parts (Section 8.1);
 - adding a new optional effect list;
 - adding an enum value when consumers have defined unknown-value behavior.
 
@@ -1390,9 +1443,9 @@ A Model Service exposes a stable generation capability while operators introduce
 
 Observability detects saturation or failure of a model, search system, tool provider, or channel API. An operator policy disables optional workflow branches, selects a fallback model/capability, reduces concurrency, applies stricter admission control, or serves a configured fallback response while preserving required state and idempotency behavior.
 
-### Combination P — Isolated multi-service or multi-tenant execution
+### Combination P — Isolated multi-service execution
 
-A shared RCCP deployment carries an explicit service or tenant scope through normalized interactions, persistence keys, memory/state access, tool authorization, quotas, telemetry, and configuration. Isolation may be logical within shared infrastructure, physical through separate databases/queues/accounts, or hybrid by sensitivity and workload.
+A shared RCCP deployment carries an explicit service scope through normalized interactions, persistence keys, memory/state access, tool authorization, quotas, telemetry, and configuration. Isolation may be logical within shared infrastructure, physical through separate databases/queues/accounts, or hybrid by sensitivity and workload.
 
 ### Combination Q — Streaming generation with channel-specific buffering
 
@@ -1420,7 +1473,7 @@ A failed interaction or workflow instance is moved to a dead-letter or quarantin
 
 ### Combination W — Layered policy enforcement around model-directed tools
 
-A character workflow exposes an approved tool catalog. A model can propose a tool call, but a separate policy boundary validates character permissions, actor authorization, service/tenant scope, parameter schema, cost/rate limits, and whether confirmation is required. A tool result is normalized before it re-enters orchestration, and the model cannot expand its own permissions by generating additional tool names or credentials.
+A character workflow exposes an approved tool catalog. A model can propose a tool call, but a separate policy boundary validates character permissions, actor authorization, service scope, parameter schema, cost/rate limits, and whether confirmation is required. A tool result is normalized before it re-enters orchestration, and the model cannot expand its own permissions by generating additional tool names or credentials.
 
 ### Combination X — Multiple characters sharing one world state
 
@@ -1630,35 +1683,13 @@ Operational changes can be separated from creator content changes. Examples incl
 
 This separation prevents lower-level operational changes from unnecessarily propagating into creator-facing artifacts.
 
-## 34. Service and tenant isolation embodiments
+## 34. Service scope and infrastructure isolation embodiments
 
-RCCP does not require multi-tenancy, but a deployment can support multiple services, customers, teams, characters, or environments by carrying an explicit scope through the architecture.
+`service_id` is the top-level logical scope of the RCCP application contract. The authorized connection or service binding establishes the effective service at admission. A normalized interaction can carry it explicitly, as in Section 8.1. Application authorization uses this scope together with the relevant actor, Character, conversation and resource identifiers. A service can reuse the same local identifiers as another service when storage and routing keys include the service scope.
 
-A normalized interaction may include:
+In an explicit-scope profile, admission validates a supplied `service_id` against the authenticated connection or deployment binding. In an implicit-scope profile, the request omits the field and admission resolves the service from a registered connection-to-service mapping or a single-service deployment default bound to that ingress. A missing or ambiguous mapping or an unauthorized assertion is rejected before a service-scoped write. In shared storage, include the effective service in lookup and uniqueness keys. In a service-bound store or partition, select that boundary from the authorized binding before any lookup or write. Records and their local keys can omit the field when the selected boundary supplies it.
 
-```json
-{
-  "scope": {
-    "service_id": "service:example",
-    "tenant_id": "tenant:optional",
-    "environment": "production"
-  }
-}
-```
-
-Isolation can be implemented as:
-
-- shared application and shared database with partitioned keys and authorization;
-- shared application with separate databases or schemas;
-- separate queues for workload isolation;
-- separate model/tool credentials;
-- separate cloud accounts/subscriptions/projects;
-- fully separate deployments;
-- a hybrid arrangement based on sensitivity or scale.
-
-Quotas, rate limits, memory/state access, search indexes, tools, secrets, and telemetry can all be scoped consistently.
-
-An implementation that does not need multi-tenancy can omit `tenant_id` and use one service scope per deployment.
+Operators can host several services under one cloud administrative boundary, allocate separate infrastructure boundaries to individual services, or combine these arrangements. Shared infrastructure uses scoped authorization and partitioned keys for data, queues, quotas and telemetry. Separate deployments can bind distinct databases, queues, workload identities and credentials. The chosen infrastructure governs administrative access and resource separation. For example, an Azure deployment can use a Microsoft Entra directory for identities and distinct subscriptions for resource administration. An AWS deployment can use AWS Organizations to govern separate AWS accounts. A deployment binding associates services with infrastructure resources while retaining the logical service identity in application authorization and state. Requests whose asserted service conflicts with their authorized binding are rejected at admission.
 
 ## 35. Evaluation and continuous improvement
 
@@ -1892,6 +1923,16 @@ Orchestration may ignore these capabilities and generate a generic response, lea
 For example, a rich response can define a primary text representation plus optional image, button, animation, or structured-action representations. A text-only channel emits the primary text while a richer channel emits additional parts.
 
 This preserves one character experience model without requiring every channel to implement the same presentation features.
+
+### 41.1 Effective interaction and delivery constraints
+
+The Channel Adapter resolves the available output capabilities and Channel limits for the interaction. The service applies operator policy, and Orchestration can apply a tighter internal budget. For the same count or size metric, the effective ceiling is the lowest applicable ceiling. Each constraint identifies its unit and scope. For output types and operations, the effective set is the intersection of allowed sets. For example, a Channel allowance of five messages and a service ceiling of three allow at most three, and the workflow can choose a budget of two.
+
+One contract passes the Channel limits and service policy limits separately, with their source and effective revision or observation time. For example, the envelope carries `channel_limits.max_messages = 5` and `service_limits.max_messages = 3`, with counts measured per delivery. The receiver combines applicable limits with matching metrics and intersects allowed sets before allocating its internal budget. Another contract passes already combined limits, as in Section 8.1. The trusted sending boundary computes them and the receiver enforces them as ceilings. A caller-supplied preference can further narrow the budget. For a required metric, an unavailable or incomparable limit triggers a configured conservative profile or a hold pending resolution.
+
+The admission boundary records an absolute deadline or a timestamped remaining budget. At each processing boundary, the receiver computes the remaining budget from the absolute deadline or subtracts elapsed time since the budget was stamped, including queue residence. For timestamps evaluated on another host, the profile specifies its clock tolerance or uses timeouts propagated with elapsed-time accounting. The receiver caps each downstream timeout at the remaining budget. For example, four seconds in the queue leave at most sixteen seconds from a twenty-second allowance. Retries reuse the original deadline. An exhausted budget triggers the profile's timeout handling. A deployment can use existing RPC deadline propagation where it provides these semantics. See the [gRPC deadline propagation guide](https://grpc.io/docs/guides/deadlines/#deadline-propagation).
+
+Before dispatch the Channel Adapter revalidates the rendered representation, Channel capability and reply window, current service policy and authorization under Section 100.2.1. Newly tighter limits require a compliant representation or a recorded hold or non-delivery result. A transformed representation follows the existing inspection and, where applicable, signing path in Sections 100.2.1 and 100.2.2.
 
 ## 42. Data lifecycle, retention, and derived-data cleanup
 
@@ -2329,7 +2370,7 @@ One embodiment is:
 
 1. the Teams-facing bot/adapter receives a message activity;
 2. Teams-specific activity routing and authentication remain in the adapter/SDK boundary;
-3. the adapter derives normalized actor, conversation, tenant/service, mention, and message metadata;
+3. the adapter derives normalized service, actor, conversation, mention, and message metadata;
 4. the activity ID or another stable delivery identifier is used for idempotency;
 5. the adapter admits the work and returns/acknowledges according to the Teams delivery requirements;
 6. RCCP Orchestration runs independently of the Teams SDK;
@@ -3085,19 +3126,19 @@ For one concrete deployment, use Azure Service Bus sessions for admission and Te
 The adapter derives or assigns:
 
 ```text
-channel_event_id     = LINE webhookEventId or a stable adapter event identifier
+channel_event_id     = stable event ID qualified by Channel instance when source-local
 interaction_id       = RCCP-generated or deterministically derived stable ID
-service_id           = RCCP service/tenant scope
+service_id           = top-level logical RCCP service scope
 character_id         = selected RCCP character
 external_actor_id    = LINE user/source identity in channel identity storage
 canonical_actor_id   = optional verified RCCP actor identity
 conversation_id      = RCCP conversation scope
 ordering_key         = service_id + conversation_id
 workflow_run_id      = durable execution/correlation identity
-publication_revision = immutable character/workflow publication
+publication_revision = immutable publication reference once resolved
 ```
 
-Raw channel IDs are not required in Character, Memory, or Model Service contracts. A Channel Identity component or adapter-owned mapping resolves them to the selected RCCP scope.
+Raw channel IDs are not required in Character, Memory, or Model Service contracts. A Channel Identity component or adapter-owned mapping resolves them to the selected RCCP scope. Admission resolves the service from the authenticated connection. Within that service, the Channel event identifier is unique for the source. A source-local event key is qualified by its Channel instance before it becomes the normalized Channel event identifier. The inbox key is the tuple of service and normalized Channel event identifier. Ordering uses the tuple of service and conversation identifiers, encoded unambiguously for the chosen broker. See Section 34 for infrastructure isolation.
 
 #### 58.1.3 Ingress transaction
 
@@ -3105,9 +3146,9 @@ On webhook receipt:
 
 1. verify the LINE request signature before accepting channel content;
 2. parse supported events;
-3. compute `channel_event_id` and `interaction_id`;
+3. resolve the effective service under Section 34, then compute `channel_event_id` and `interaction_id`;
 4. begin a database transaction;
-5. insert an inbox/idempotency record keyed by `service_id + channel_event_id`;
+5. insert an inbox/idempotency record keyed by `(service_id, channel_event_id)` in shared storage, or by `channel_event_id` within the bound service store or partition;
 6. if that key already exists in an admitted or completed state, do not create a second interaction;
 7. insert the normalized interaction record and its immutable raw-payload reference or permitted audit metadata;
 8. insert an outbox record whose destination is the durable admission queue;
@@ -3128,7 +3169,7 @@ The exact number of stored states can differ; the required property is that admi
 
 #### 58.1.4 Per-conversation ordering
 
-The queue message carries:
+In the admission-time pinning embodiment the queue message carries:
 
 ```json
 {
@@ -3146,7 +3187,7 @@ Ordering at the broker does not eliminate application idempotency. The worker lo
 
 #### 58.1.5 Publication pinning
 
-At admission, or at the configured workflow-start boundary, the system resolves a publication:
+For request selection or admission-time internal selection, admission stores the resolved mapping with the interaction. For internal selection at workflow start, the queue message in Section 58.1.4 omits `publication_revision` and the workflow records the mapping before running the interaction or issuing effects. A uniqueness constraint or conditional insert permits one mapping per interaction in the effective service scope. A concurrent or duplicate start loads the stored mapping. If a requested revision conflicts with one already recorded for the same identity, reject the conflicting request without replacing the mapping.
 
 ```json
 {
@@ -3159,7 +3200,7 @@ At admission, or at the configured workflow-start boundary, the system resolves 
 }
 ```
 
-That mapping is immutable for the admitted interaction unless an explicit migration policy says otherwise.
+That mapping is immutable for the admitted interaction unless an explicit migration policy says otherwise. A retry that resumes the interaction loads the recorded mapping. If a pinned revision is unavailable, hold or fail under the profile's policy, or apply an explicit migration and record its provenance. The processing boundaries still apply the effective data-use, authorization, consent, retention and mandatory service rules under Sections 91.7 and 100.2.1. For example, a retry can reuse `char:42` and `flow:17` while excluding a memory whose use was revoked after admission. A completed operation reuses its recorded result and reapplies delivery checks under Section 11.3.
 
 A rollback changes which publication new interactions resolve. It does not rewrite provenance for already admitted work.
 
@@ -3253,7 +3294,7 @@ A zero-row update signals a conflict. The workflow reloads the current state and
 
 #### 58.1.10 Channel delivery
 
-The workflow produces a channel-neutral output intent. The LINE adapter receives or reads that intent and evaluates current delivery capability.
+The workflow produces a channel-neutral output intent. The LINE adapter receives or reads that intent and applies the final checks in Section 41.1.
 
 If the original reply token is still usable, it uses the reply operation. If not, and proactive/push delivery is configured and permitted, it may use that path. Otherwise it records a non-delivery result while preserving the already committed character state according to the workflow's delivery semantics.
 
@@ -4238,7 +4279,7 @@ One embodiment defines a long-lived Direct Chat profile with:
 - one conversation scope;
 - typed content parts;
 - stable interaction and message identifiers;
-- tenant and service scopes;
+- service scope under Section 34;
 - channel type and channel-instance origin;
 - a response containing one or more channel-neutral character messages or an explicit error.
 
@@ -4254,11 +4295,12 @@ The Direct Chat profile and Multi-party profile can coexist. Adding multi-party 
 
 ### 67.1 Illustrative direct-chat envelope
 
+This example illustrates a Direct Chat contract profile. An implementation can supply logical service scope through an authorized binding and use a profile-specific wire layout. Section 8.1 gives another reference envelope.
+
 ```json
 {
   "interaction_id": "interaction:01J...",
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat"
   },
   "origin": {
@@ -4281,7 +4323,7 @@ The Direct Chat profile and Multi-party profile can coexist. Adding multi-party 
 
 `interaction_id` identifies admitted processing, while `message.id` identifies the input message. They can coexist even when both are derived from one external event.
 
-Character, actor, conversation, tenant, service, and channel-instance identifiers remain separate because they have different lifecycles and scopes. A LINE identity and a Discord identity do not become the same actor ID merely because a later consented identity link exists.
+Character, actor, conversation, service, and Channel instance identifiers remain separate because they have different lifecycles and scopes. A LINE identity and a Discord identity do not become the same actor ID merely because a later consented identity link exists.
 
 ### 67.2 Multi-party profile alternatives
 
@@ -4523,7 +4565,6 @@ An Entity Record identifies something that can appear in knowledge, memory, rela
   "canonical_name": "Moon Observatory",
   "aliases": ["Lunar Observatory"],
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat",
     "world_id": "world:example"
   },
@@ -4536,7 +4577,7 @@ An Entity Record identifies something that can appear in knowledge, memory, rela
 }
 ```
 
-`entity_id` is stable within the declared scope. A renamed place retains its identifier. Alternate timelines, worlds, services, or tenant namespaces use separate scope or revision identifiers rather than assuming that equal display names identify the same entity.
+`entity_id` is stable within the declared scope. A renamed place retains its identifier. Alternate timelines, worlds or services use separate scope or revision identifiers rather than assuming that equal display names identify the same entity.
 
 ### 73.2 Qualified knowledge statement
 
@@ -4564,7 +4605,6 @@ A Qualified Knowledge Statement connects a subject to an object or literal throu
     "valid_until": null
   },
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat",
     "world_id": "world:example",
     "character_id": "char:alice"
@@ -4609,7 +4649,6 @@ In a separate-memory embodiment, the record is:
 {
   "memory_id": "memory:01J...",
   "owner_scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat",
     "actor_id": "actor:123",
     "character_id": "char:alice"
@@ -4656,7 +4695,6 @@ A text-only memory store, statement-only graph, dual text-and-graph record, immu
     "id": "actor:123"
   },
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat"
   },
   "dimensions": {
@@ -4927,7 +4965,7 @@ Build work is idempotent by publication revision and projection type. Verificati
 In the query-led embodiment:
 
 1. classify or deterministically map the interaction to zero or more topic and entity identifiers;
-2. build an authorization scope from tenant, service, actor, character, conversation, channel, audience, and consent information;
+2. build an authorization scope from service, actor, character, conversation, Channel, audience, and consent information;
 3. query text, vector, graph, or relational indexes for candidates;
 4. reject candidates whose source revision is not active;
 5. reject candidates outside the authorization scope;
@@ -5014,7 +5052,7 @@ For every external event, the Channel Adapter:
 3. maps channel-local actor, conversation, thread, destination, and message identifiers;
 4. stores an idempotency record before acknowledging asynchronous processing;
 5. writes a Normalized Event containing one origin actor and one source message;
-6. routes the event to a conversation coordinator by tenant, service, and conversation scope;
+6. routes the event to a conversation coordinator by service and conversation scope;
 7. retains channel-specific reply correlation outside the channel-neutral event.
 
 One external event is not required to represent a complete conversational turn.
@@ -5407,7 +5445,7 @@ An implementation may combine adjacent boundaries in one transaction when storag
 
 ### 78.1 Failure handling
 
-**Knowledge source unavailable:** use an already verified active projection, an immutable local bundle, a configured reduced-context path, or fail closed for required knowledge. Do not substitute another tenant, world, or publication revision.
+**Knowledge source unavailable:** use an already verified active projection, an immutable local bundle, a configured reduced-context path, or fail closed for required knowledge. Do not substitute another service, world, or publication revision.
 
 **Graph traversal exceeds limits:** stop at configured depth/fan-out/cost, retain already authorized results, mark truncation in provenance, and continue or fail according to whether omitted knowledge was optional.
 
@@ -5433,7 +5471,6 @@ An implementation may combine adjacent boundaries in one transaction when storag
 
 Knowledge and continuity are keyed by any one or combination of:
 
-- tenant;
 - service;
 - world or IP;
 - publication;
@@ -5740,7 +5777,7 @@ Deterministic and learned matchers return evidence rather than directly executin
   "publication_id": "policy-publication:2026-09-example",
   "layer": "operator",
   "scope": {
-    "tenant_ids": ["tenant:example"],
+    "service_ids": ["service:example"],
     "character_ids": ["character:guide"],
     "channel_types": ["line", "discord"],
     "surfaces": ["channel_input_normalized", "model_text_output"]
@@ -5838,7 +5875,7 @@ An exception can be owned by the prohibited-term record, referenced by it, or re
 3. **Negative dictionary.** A permitted term list is evaluated before or together with a prohibited dictionary.
 4. **Longest-match resolution.** The longest valid lexical match wins when shorter matches are fully contained and both rules declare the same competition group.
 5. **Explicit override edge.** Rule A declares `suppresses: [B]`; cycles are rejected at publication time.
-6. **Scoped adjudication.** A reviewed false positive creates an expiring or permanent exception limited by tenant, Character, language, Channel, actor class, or phrase hash.
+6. **Scoped adjudication.** A reviewed false positive creates an expiring or permanent exception limited by service, Character, language, Channel, actor class, or phrase hash.
 
 For example, a prohibited Japanese term record can own `ウーマンコミュニケーション` and `ウルトラマンコスモス` as containing-phrase exceptions. Only that record's evidence wholly inside the permitted phrase is suppressed; other records and spans remain active.
 
@@ -5889,7 +5926,7 @@ The authority hierarchy is explicit and versioned. Independent embodiments inclu
 
 - **Monotonic restriction:** developer rules establish a non-overridable floor; operators and creators can only add restrictions or choose among allowed actions.
 - **Delegated relaxation:** developers define rule namespaces and limits that an operator may relax; the operator can delegate a narrower subset to a creator.
-- **Tenant-first policy:** an operator controls all tenant rules except immutable platform integrity rules; creators configure Character behavior inside the tenant envelope.
+- **Service policy:** an operator controls the rules for the assigned service within platform integrity rules. Creators configure Character behavior under the applicable service rules.
 - **Signed total ordering:** every rule carries an authority rank and signature, and a publication-time validator rejects ranks the signer is not authorized to issue.
 - **Intersection policy:** an interaction is allowed only when developer, operator, and creator decisions all allow it; each layer can return a different user-facing action.
 
@@ -6005,7 +6042,7 @@ Message-level detection can hide mixed language; span detection can be unstable 
 }
 ```
 
-Controls follow Section 80.9: developers can restrict translation services, operators can set tenant languages and cost limits, and creators can narrow languages or select Character-specific response and clarification behavior.
+Controls follow Section 80.9: developers can restrict translation services, operators can set service languages and cost limits, and creators can narrow languages or select Character-specific response and clarification behavior.
 
 ### 81.5 Mixed, unknown, and low-confidence behavior
 
@@ -6082,7 +6119,7 @@ If two trusted instructions conflict, the same explicit policy-resolution mechan
 
 ### 82.4 Tool and external-effect boundary
 
-A model can propose but not authorize a Tool Request. The Tool Service validates tool, caller, Character, actor, tenant, purpose, arguments, budgets, confirmation, data scope, and effect-journal state.
+A model can propose but not authorize a Tool Request. The Tool Service validates tool, caller, Character, actor, service, purpose, arguments, budgets, confirmation, data scope, and effect-journal state.
 
 High-impact or irreversible effects can require explicit user or operator confirmation bound to an immutable operation preview. Read-only and mutating capabilities use different identifiers and credentials. Tool results return as untrusted or tool-attested data according to the connector, never as developer instructions.
 
@@ -6645,7 +6682,6 @@ One implementable record is:
 ```json
 {
   "event_id": "world-event:01K...",
-  "tenant_id": "tenant:example",
   "service_id": "service:example",
   "world_id": "world:harbor-city",
   "scene_id": "scene:winter-plaza",
@@ -6672,7 +6708,6 @@ The event states that an occurrence was committed. A `SpeechEvent` states that a
 ```json
 {
   "projection_id": "observation:01K...",
-  "tenant_id": "tenant:example",
   "service_id": "service:example",
   "world_id": "world:harbor-city",
   "source_event_ids": ["world-event:01K..."],
@@ -6701,7 +6736,6 @@ Projection generation can be deterministic, creator-authored, rule-based, model-
 ```json
 {
   "transition_id": "subjective-transition:01K...",
-  "tenant_id": "tenant:example",
   "service_id": "service:example",
   "world_id": "world:harbor-city",
   "character_id": "character:alice",
@@ -6770,7 +6804,7 @@ Independent intervention classes include:
 
 Creator and Operator authority can overlap or remain separate. A deployment can allow Creators to control story content and Character intent while Operators control activation time, operational safety, quotas, rollback, and emergency suspension. An Operator creates story content only when delegated by the applicable service or Creator policy.
 
-Neither role receives Actor-private data, consent-restricted continuity, secret credentials, or unrelated tenant scope merely because it can alter fictional World or Character state. Existing consent, deletion, privacy, tenant, and Developer-controlled security boundaries remain independently enforceable.
+Neither role receives Actor-private data, consent-restricted continuity, secret credentials, or unrelated service scope merely because it can alter fictional World or Character state. Existing consent, deletion, privacy, service, and Developer-controlled security boundaries remain independently enforceable.
 
 ### 91.2 Intervention record
 
@@ -6784,7 +6818,6 @@ Neither role receives Actor-private data, consent-restricted continuity, secret 
     "delegation_id": "delegation:world-harbor-city"
   },
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:example",
     "world_id": "world:harbor-city",
     "scene_ids": ["scene:winter-plaza"],
@@ -6845,6 +6878,29 @@ Activation uses expected revisions and idempotency. A stale intervention is re-e
 
 For event-sourced world state, correction normally appends compensating or superseding events. For mutable-state embodiments, an audit record and prior revision remain available even when the current row changes. A rollback changes the active publication or adds a transition; it does not rewrite the provenance of already executed interactions.
 
+### 91.7 Applying policy changes to existing memories and relationships
+
+A deployment can apply a new policy to future recall, depiction or conduct while retaining authorized records of past experiences. An intervention can also correct or supersede a memory or change current relationship state through its owning boundary. The applicable retention and consent rules govern stored records and their derivatives under Sections 42, 76.9 and 82.5.1.
+
+**Authoring and activation.** An intervention extends the record in Section 91.2 with the previous and new policy revisions, the affected work, Character, relationship or run scope, the covered data categories and purposes, and an activation condition. For each covered class it identifies the rule and any scoped exception, the applicable use or state transition, and optional notice, scene or fallback references. The creator selects these values from registered conditions and actions and previews representative conversations and state changes on an isolated snapshot under Section 32.3. The editor shows the rule selected for each use, the proposed relationship change, if any, and the line or scene that would be presented. Delegated operators can stage, schedule, suspend or resume the affected operation. The runtime validates the same configuration when it is submitted through a form, structured document or administrative interface.
+
+A policy can take effect at a timestamp, at the next interaction, when a grace period expires, at an authored milestone or when the Actor makes an eligible choice. A world or run owner records milestone and choice activation against the expected revision, using a stable occurrence or choice identity. It persists the activation per scope so a retry or a later interaction applies the same decision. A policy may keep an existing run on the previous editorial rules and apply the new editorial rules to the next run. Current authorization, consent revocation, retention and mandatory service restrictions apply according to their own effective revisions, including during any editorial grace period.
+
+**When data is evaluated.** On each use, the responsible boundary resolves the effective policy for that scope and purpose, including when an interaction resumes with the recorded Publication revision from Section 58.1.5. Required information, such as the current relationship, active story facts or applicable rules, is resolved when assembling the next response or action that requires it, including through the exact lookups in Sections 58.1.6 and 74.6. An optional episode is checked when it becomes a candidate through a cue, search or scheduled occurrence under Section 74.7. Retrieval applies current scope and visibility constraints before crossing a trust boundary. Before context assembly, the responsible boundary checks the selected payload and its permitted use. Direct history views evaluate the history-display purpose and audience at read time. Proposed memory writes and relationship, quest or item changes are checked before commit. The Egress Guardian checks what can reach the intended audience, including a resumed or incremental delivery. The owner compares the decision revisions with the authoritative revisions at commit. Delivery uses the revision checks of Section 100.2.1 for the applicable unit of delivery. Existing callbacks and in-flight work re-resolve or use the configured fallback if the required revisions are stale. A new revision governs decisions that reach these boundaries after activation. Previously delivered content is handled through the applicable history or correction procedures.
+
+| Deployment option | How it applies the new revision |
+| --- | --- |
+| Evaluate on use | Publish the new revision and evaluate eligible records as a supported operation needs them. A reusable decision is scoped to the record and dependency revisions, effective policy, scope, principal, purpose and audience, with current grant and consent revisions and expiry checked before reuse. |
+| Precompute frequently needed decisions | Precompute for required facts, commonly used memories or active conversations. Recheck the recorded inputs at use and recompute for misses or stale entries. This moves some work off the response path. |
+| Process known affected records in a scoped batch | Select a known class or affected set using scope and source dependencies, such as after a correction or revocation. Block the withdrawn use at the authoritative boundary from its effective revision, then invalidate or rebuild the affected records and indexes with retryable jobs. |
+| Migrate the affected population before editorial activation | Stage replacement records or decisions against a source snapshot. Apply intervening writes against the staged revision or bring it up to the active high-water mark, validate it, and switch the active revision under a fence. On validation failure, keep the effective editorial revision or suspend the affected operation while resolving the failure. Mandatory authorization changes continue to apply at their own effective time. |
+
+These options can be combined. A deployment can check ordinary memories on use, precompute the current relationship context and process an identified set of withdrawn records in a batch.
+
+**Selecting the effect of a change.** The owner determines whether a relationship or event was committed under the applicable policy, only appeared in delivered dialogue, or was committed in error. It records uncertainty when the source and decision history are incomplete. A delivered line can remain part of the authorized conversation history with its original provenance. A current response can acknowledge that it was said and, where appropriate, explain the correction using eligible evidence. For an established relationship, the creator can retain current status and restrict future actions or depictions, apply a grace period, offer an eligible continuation choice, or transition to a new status through an authored scene or a direct intervention under Section 91.3. Disputed or erroneous records can be held, superseded by corrected revisions, or removed where the applicable policy calls for it. A correction can update the current relationship and its dependent projections while retaining eligible records of other shared experiences.
+
+For example, an ongoing adventure recognizes a wedding that was committed under an earlier publication. When a new publication changes which future relationship scenes are available, the creator can preserve the ceremony as an eligible historical event and apply the new rules to each later depiction, choice and action. The same policy can permit a private reference to the ceremony, withhold it from another audience, and disallow using it to unlock a discontinued scene. If the creator changes the active relationship, an authorized scene can acknowledge the shared experience. The participants can discuss revised terms or part ways when the scene and current policy permit it. For example, a Character can say, “I remember the festival and what we promised each other. For the road ahead, I’d like us to talk about what that means for us now.” The runtime draws the line from facts eligible for this Character and audience, and checks that the line does not announce a change ahead of the state owner’s decision. A user-facing service notice can explain a policy change or a technical correction when appropriate. The workflow can offer authorized choices to continue, revisit an earlier point, or request help, with the scope and effect made visible before selection.
+
 ## 92. Bounded autonomy and human authority
 
 ### 92.1 Autonomy is optional
@@ -6895,7 +6951,7 @@ Logical responsibilities include World State ownership, Simulation Orchestration
 
 One complete embodiment performs the following steps:
 
-1. Resolve the active tenant, service, World, Character, workflow, intervention, policy, and Autonomy Profile revisions for the trigger.
+1. Resolve the active service, World, Character, workflow, intervention, policy, and Autonomy Profile revisions for the trigger.
 2. Admit an Actor request, Character proposal, Tool result, scheduled occurrence, Creator intervention, Operator intervention, or deterministic world-process trigger under a stable identifier and idempotency key.
 3. Authenticate the principal or system trigger and resolve its authority separately from the proposal content.
 4. Load the expected World, entity, scene, relationship, and relevant Character subjective revisions.
@@ -6985,6 +7041,35 @@ Replay records or pins World and Character Publications, intervention and autono
 Regression evaluation can replay representative worlds with autonomy disabled, with recorded proposals, or with current proposal generation. It compares committed effects, protected Character traits, belief/observation separation, policy decisions, and audience-visible output without assuming byte-identical model text.
 
 Deletion, consent revocation, visibility changes, and retcons are separate transition types. A deployment can delete or cryptographically erase Actor-private payloads and invalidate derived projections while retaining a non-sensitive event identifier, tombstone, or digest when policy permits. A retcon can supersede the current authoritative interpretation without pretending that Characters never observed or acted on the earlier version; policy decides whether affected beliefs remain as historical memories, become disputed, are corrected by a new projection, or are rebuilt from an earlier revision. Replay records which rule was applied. Persistent summaries, handoffs, and compressed context retain the source and derivation revisions needed for the reuse checks in Section 82.5.1. Historical replay can inspect permitted recorded decisions; it does not resurrect withdrawn data or grant permission for a new live effect.
+
+### 94.5 Scoped reconstruction of memory and state
+
+A report that a Character has forgotten an event can arise from a failed retrieval, a summary that omitted or misstated it, a superseded or withdrawn source, a changed relationship or story state, or a stale Channel view. An authorized operator can locate the Actor, Character, conversation or run and interaction range in the controls of Section 33. The diagnostic view compares the selected source revisions and the eligibility decision in the Context Manifest, the rendered result, the authoritative committed state, and any pending or stale projection. It displays only evidence the operator is authorized to inspect and can show a reason code and revision reference when the underlying payload is restricted.
+
+**Planning a correction.** A preview identifies the affected source references and current revisions, old and proposed values or statuses, dependent records to regenerate or hold, and committed actions requiring a separate correction. It also identifies unaffected records to preserve, missing evidence, pending external effects, and what the user would see. The operator can select or narrow the affected scope and choose among registered treatments, such as refreshing a stale display, correcting a record or its derived summary, temporarily withholding a disputed fact, reconstructing from approved sources, or offering an authorized rewind. The correction request binds the preview to the scope, permitted sources, applicable policy and authorization revisions, expected revisions for each owner, approval or user request where required by the deployment, and a stable operation identity. A configured workflow can generate the preview automatically for a known incident class. Operators can execute registered repairs through the administrative surface. Developers can add new diagnostic or repair actions through the same ownership and authorization checks.
+
+**Reconstruction and publication.** For correction, deletion or withdrawal, the owner advances the corresponding source or authorization status and follows the recorded dependencies under Section 82.5.1. A source may also remain in authorized historical storage while a particular use or influence is withheld. A deployment can use the following repair forms:
+
+1. **Replay from a verified checkpoint.** Restore an isolated checkpoint preceding the first affected contribution. Verify its dependencies under current permissions, then replay eligible recorded events or observations through the state and derivation logic. A provider cache can be invalidated when supported. When isolation from an affected cache cannot be established, use a verified clean runtime or hold the affected reconstruction pending. Replay can read eligible recorded tool results. The replay environment disables live Channel delivery and tool side effects.
+2. **Rebuild directly from approved records.** Regenerate the affected memories, summaries, indexes or projections from eligible conversation spans, committed events and observations. If one summary mixes an unsupported claim with a verified shared episode, reconstruct the summary from the eligible sources for that episode. An owner can apply a targeted replacement or compensation when the authorized delta is already known.
+3. **Hold and resolve missing evidence.** Use an earlier verified boundary or rebuild from independently verified sources when lineage or the latest checkpoint is incomplete. If the evidence remains insufficient, mark the affected record pending and continue with unrelated eligible data wherever the workflow can proceed without the pending record. The operator can ask the user for clarification, offer a permitted restart or rewind, or record a compensation decision. A rewind request exposes which records would be restored, carried forward or superseded. Report missing evidence as a gap in continuity.
+
+The candidate state remains isolated until the applicable owners recheck authorization, dependencies, policy and expected revisions. On conflict, reload and preview the changed delta or leave the repair pending. In a single-store embodiment, a transaction compares the expected revisions and publishes the authorized changes and operation result together. In a multi-store embodiment, owners stage changes by operation identity and use a scoped fence or an atomic switch of the active revision for dependent reads. Outbox and inbox records track retries and reconciliation under Section 94.1. Dependent reads use a verified consistent revision or the configured hold response while a partial update is pending. A stale worker or duplicate request cannot publish an older affected revision or repeat compensation. An external effect that has already occurred has its own authorization and compensation path. The operator checks the final status and resulting revisions against the preview. A user-facing notice can identify the scope repaired or still pending. Where the owner supports it, the operator can preview a compensating repair using the then-current revisions.
+
+**Worked examples.** The deployments in Section 11.4 can apply these operations in different ways.
+
+| Experience | Example operation and user-visible result |
+| --- | --- |
+| Continuing conversation | After a regression, a user requests help with memories that contradict a birthday conversation. An operator compares the source conversation, derived summary and any separately committed reward. The operator can rebuild the summary, correct an erroneous reward, or offer a rewind to a verified point with a preview. Eligible birthday dialogue remains available for future recall when it is outside the repair scope. |
+| Story with an ending and replay | A promise made in free conversation was misclassified as completion of a required scene. The operator checks the run, the committed transition and the affected choices. The operator can retain the exchange, repair the progression state and issue fresh choices, or offer to resume from an earlier scene. A voluntary new playthrough uses the configured carryover rules of Section 11.4. |
+| Continuing adventure | An observatory visitor received a reply saying the entry occurred and that the guide made a promise. The owner’s result shows the visitor remained at reception. An operator can rebuild the affected summary and choices, preserve the eligible reception conversation, and refresh an inventory projection if the pass balance was displayed incorrectly. If the authoritative balance was actually debited in error, an authorized operator previews and applies one compensating correction with the pass and quest revisions checked. |
+
+**Verification.** Exercise the configured paths with an allowed historical event whose future use changes, a bad claim and an unrelated permitted episode in the same summary, incomplete lineage, a stale in-flight write, duplicate execution and a partially completed multi-store repair. Verify that eligibility changes take effect at the relevant use, commit and delivery boundaries. For removal, a behavioral audit can compare synthetic histories that were exposed to a target and then had it removed against matched histories that never contained it. Check target disclosure or influence in responses, reintroduction in persistent writes, and recall in a fresh session. For a restriction limited to a purpose or audience, test both the forbidden use and an authorized use of the same record. Also check that permitted experiences, relationship state and unrelated inventory or quest events survive as specified, and that replay does not repeat user-visible delivery or consumption. Record the tested scope and outcomes.
+
+**Related work.** Yao et al. describe provenance-guided replay from a checkpoint to reconstruct affected execution state [1]. Saleh et al. distinguish post-deletion recovery, persistent write-back and fresh-session recall in a controlled behavioral audit [2]. The embodiments above apply these ideas alongside domain-owned relationship and inventory corrections, scoped permission checks and operator-selected repair.
+
+1. Chao Yao et al. “Forgetting Without Restarting: Execution-State Unlearning for Stateful LLM Agents.” arXiv:2609.04875v1, 4 September 2026. <https://arxiv.org/abs/2609.04875v1>
+2. Ehsan Saleh et al. “AfterDeleteBench: Auditing Post-Deletion Information Persistence in LLM Agents.” arXiv:2610.31366v1, 22 October 2026. <https://arxiv.org/abs/2610.31366v1>
 
 ## 95. Worked embodiments
 
@@ -7373,6 +7458,35 @@ A policy specifies buffered-duration and byte or token bounds, admissible timing
 After partial release, failure or cancellation stops only undispatched components. Retraction of dispatched components follows the Channel's capabilities, with outcomes recorded; it cannot promise that already perceived speech or movement disappears. Replacement or correction requires its own egress decision. The ledger retains completed, failed, and unknown outcomes. Tool effects and durable mutations retain their own authorization and transaction boundaries even when correlated to the same bundle.
 
 For example, bundle 8 passes for a private audience with a soft voice track. An adapter's voice replacement and public-room mapping prevent release under that decision. The public bundle, or a text-only replacement, needs a new inspection. If streamed text reaches the Channel but audio acknowledgement is lost, the ledger retains text's handoff result and audio's unknown result; audio is not blindly resent and dependent later units wait. State and Tool outcomes reconcile independently through Sections 94 and 101.
+
+### 100.2.2 Signed delivery and verification by recipients
+
+A service can sign an output so a receiving application or a third party with access to a shared copy can check the issuing service and the integrity of the signed representation. The operator configures which services, Channels and output types require signing, permit an unsigned fallback or leave signing disabled. The operator can delegate selection by work, Character or enabled output type to a Content Creator within that policy. The developer integrates signing and verification with standard libraries, platform capabilities or an existing tool. The operator controls key bindings, access to signing and publication of verification keys. Public proofs carry only approved identifiers and claims. The release ledger can retain private audience identifiers and internal decision references under the access controls of Section 21.5.
+
+**Binding a signature to a release.** The dispatch path uses the approved representation and release checks in Section 100.2.1. An immutable release intent associates the output ID and revision, the service and speaker, the authorized audience or publication scope, the egress decision and the digest of the representation being released. For a signed stream, the record also identifies its stream, unit and sequence. The signer accepts a release reference from an authorized workload, resolves the approved representation and checks that the requested signing key and scope are authorized for that issuing service. It produces the designated proof and records the proof or its immutable reference, profile and key version against the release identity by conditional write. If signing workers race, only the stored result can proceed. Dispatch uses that result and the original delivery identity for retries. It rechecks current authorization, required proof and key status at the release boundary, including after waiting for signing. If a proof is no longer eligible before dispatch, the release is held or explicitly superseded under current policy. Changed content or destination follows the reinspection rules of Section 100.2.1 and receives a new signed revision. A correction can include a reference to the output it supersedes. Delivery and ambiguous acknowledgements use Sections 38 and 101.1.
+
+**Direct verification of structured messages.** One embodiment serializes a versioned JSON object as UTF-8 and signs those exact payload bytes as a JSON Web Signature (JWS) [1]. The object identifies the issuing service, output ID and revision, speaker, approved Channel or public scope, media type and content. The signed content can contain the text and a list of immutable attachment references with digests. For example, a profile uses the fields `v`, `service_id`, `output_id`, `output_revision`, `speaker_id`, `scope`, `media_type`, `text` and `attachments`, with a content reference and SHA-256 digest per attachment. The protected JWS header contains the signature algorithm and a key identifier. For recipient or third-party verification, the signing workload uses an asymmetric private key and the verifier uses the corresponding trusted public key. For example, an `ES256` profile uses P-256 and SHA-256 as specified in [RFC 7518, Section 3.4](https://www.rfc-editor.org/rfc/rfc7518.html#section-3.4). Dispatch sends the compact JWS with its payload, or omits the payload segment and delivers the exact payload bytes alongside the proof. For the detached form, the verifier reconstructs the signing input from the protected header and the base64url encoding of those payload bytes under RFC 7515, Appendix F. A .NET application can use an existing JOSE library to package the signature and standard cryptography APIs to verify it. When participating implementations reconstruct JSON from a structured object, they can agree on a canonical representation such as JCS [2] and sign and verify the resulting UTF-8 bytes.
+
+A mobile application or Web UI obtains the trusted service-to-key binding from its configuration or authenticated service metadata. It uses the protected key identifier to look up an allowed public key in the expected issuing service's trusted key set. It checks that the protected algorithm matches the configured asymmetric algorithm for that key, verifies the signature on the exact bytes and compares the signed service, scope and output identity with the expected context. A missing key, disallowed algorithm, missing detached payload or failed verification cannot yield a verified result. It renders the verified fields or compares them with the representation already received. It checks resolved attachment bytes against their signed digests and labels any surrounding unsigned display separately. When the reply is expected for a specific request, the profile includes a request binding and the receiver checks it against the pending request. A verifier of a shared copy can report verified origin without treating an old output as a new reply. For streaming, units carry the stream identity and sequence. A receiver checks expected order and identifies missing or duplicate units. A signed final record can declare the expected unit count and the digest of the ordered unit digests when the receiver needs to verify completeness.
+
+**Verification through a reference.** A Channel that can carry a link or opaque reference can deliver it alongside the output. A verification endpoint resolves the reference to the signed representation and proof by output ID and revision. It authenticates access for private records, applies authorization and retention policy and exposes only approved public or explicitly shared representations to third parties. A shareable representation can consist of a redacted export inspected and signed under its own output ID and release scope. The recipient verifies the retrieved proof and compares the supplied bytes or the applicable content fields with the signed representation. A copied link can resolve to a valid original even when the neighboring text or screenshot differs. When comparison is unavailable, the verifier can present the signed original with a status limited to that original.
+
+**Signed media and processing by a Channel.** A media embodiment uses a C2PA implementation to bind a signed manifest to an approved image, audio or video asset [3]. The manifest carries the permitted provenance assertions and an identifier for the applicable issuance record. The application can invoke a library in the delivery worker or send the approved asset reference, manifest inputs and issuance identity to a tool in a container. The tool returns the packaged media or an immutable reference to it and the manifest identifier. Dispatch checks that the returned package binds the approved media and contains only permitted assertions. If packaging changes the media that the audience perceives, the changed representation enters the inspection path of Section 100.2.1. The recipient validates the asset binding, manifest signature and issuer trust under the selected C2PA profile. A transformation component authorized for the delivery profile validates the input binding, records the transformation in a new manifest under its own identity, and links the original as an ingredient. The receiver evaluates both identities under its trust policy. If a Channel removes the embedded manifest, the application can retrieve an external manifest and validate its binding to the delivered asset, or direct the recipient to the signed original. A match based only on a reference or a similarity signal supports discovery of the original. Exact verification of the received derivative requires a valid binding for that derivative.
+
+**Signing capabilities and status.** A deployment can use a managed key service through an infrastructure implementation under Section 108, a standard cryptography library using a key available to the authorized signing workload, or an existing signing tool in a separate runtime. The signing contract specifies whether input consists of the signing bytes or an algorithm-specific digest, together with the authorized key version and algorithm. The caller and the signing implementation agree on which component hashes the signing input and on the encoding of the returned signature. The implementation returns the signature bytes or a classified failure. The dispatch path assembles the proof according to its chosen format. A tool that produces a complete signed media package implements that package contract and can delegate signing to a managed key service where its supported integration allows it. Section 21.4 governs credentials.
+
+The issuer keeps a public verification key available for the applicable verification period after routine rotation. Verifiers apply the trust policy for expired, disabled, unknown or compromised keys. When historical verification depends on whether a proof predates a compromise, the issuer can obtain a trusted timestamp over the signature or proof as specified by the selected profile [6]. The verifier checks the timestamp authority, its binding to the proof and the issuing key's trust history. The operator can inspect the issuance and delivery records, suspend signing for a key and publish a revocation or correction. A transient signing failure leaves a required-signature release pending for retry or causes it to be held. If policy permits unsigned delivery, dispatch records that choice and recipients can display the absence of proof. Verification can distinguish a verified issuer and representation, a content or scope mismatch, an untrusted or revoked key, unavailable status data and missing proof. The verified result applies to the signed claims and representation.
+
+**Worked example.** The observatory service in Section 11.4 delivers a private reply confirming entry after the state owner commits the result. Its mobile client verifies the signed reply and the private scope. The service can issue a separately inspected public announcement or souvenir image for sharing. A third party can verify that public artifact using the service key, even when access to the private reply is unavailable.
+
+**Related work.** Nemecek et al. study cases in which individually validated media provenance and watermark signals give conflicting results [4]. Golaszewski et al. analyze C2PA security properties in a study published before version 2.5 [5]. The verification procedure above reports issuer trust, asset binding and unavailable evidence distinctly.
+
+1. IETF RFC 7515, *JSON Web Signature (JWS)*, May 2015. <https://www.rfc-editor.org/rfc/rfc7515>
+2. IETF RFC 8785, *JSON Canonicalization Scheme (JCS)*, June 2020. <https://www.rfc-editor.org/rfc/rfc8785>
+3. Coalition for Content Provenance and Authenticity, *C2PA Technical Specification*, version 2.5. <https://spec.c2pa.org/specifications/specifications/2.5/specs/C2PA_Specification.html>
+4. Alexander Nemecek et al., *Authenticated Contradictions from Desynchronized Provenance and Watermarking*, arXiv:2603.02378v3, 17 October 2026. <https://arxiv.org/abs/2603.02378v3>
+5. Enis Golaszewski et al., *Verifying Provenance of Digital Media: Why the C2PA Specifications Fall Short*, arXiv:2604.24890v1, 27 April 2026. <https://arxiv.org/abs/2604.24890v1>
+6. IETF RFC 3161, *Internet X.509 Public Key Infrastructure Time-Stamp Protocol (TSP)*, August 2001. <https://www.rfc-editor.org/rfc/rfc3161>
 
 ### 100.3 Probability-domain separation
 

@@ -34,11 +34,13 @@ The Technical Disclosure covers the cumulative design space below, not only the 
 
 This index covers concrete designs for persistent, evolving character experiences shaped by creators. Memory sharing and autonomous behavior remain subject to the service's consent, access, and authority boundaries.
 
-## Public Edition #10 highlights
+## Public Edition #11 highlights
 
-This edition describes how a character-chat experience can progress through creator-defined scenes in response to free-form conversation. A worked example selects a scene, prepares a reply, and commits an authorized transition while handling ambiguity and concurrent changes.
+This edition extends the free-conversation scene example with creator-configured choices and guard rules. It describes ways to apply policy changes to existing memories, diagnose and repair affected state, and verify signed output. It also refines reference contracts for service scope, publication revisions, and delivery constraints.
 
-[Scene progression (§11.3)](docs/publications/rccp-architecture-and-technical-disclosure.md#113-scene-progression-from-free-form-dialogue) connects typed decisions, language models, classifiers, and rules to the existing workflow, state, and output boundaries. Fixed Markdown, PDF, and checksums are available in the [Public Edition #10 release](https://github.com/AkihiroFujimotoChocolate/roidoya-character-chat-platform/releases/tag/rccp-technical-disclosure-edition-010).
+[Scene choices and guards (§11.4)](docs/publications/rccp-architecture-and-technical-disclosure.md#114-presenting-dialogue-dependent-choices-under-creator-policy); [policy changes (§91.7)](docs/publications/rccp-architecture-and-technical-disclosure.md#917-applying-policy-changes-to-existing-memories-and-relationships); [scoped reconstruction (§94.5)](docs/publications/rccp-architecture-and-technical-disclosure.md#945-scoped-reconstruction-of-memory-and-state); [signed delivery (§100.2.2)](docs/publications/rccp-architecture-and-technical-disclosure.md#10022-signed-delivery-and-verification-by-recipients).
+
+Fixed Markdown, PDF, and checksums are available in the [Public Edition #11 release](https://github.com/AkihiroFujimotoChocolate/roidoya-character-chat-platform/releases/tag/rccp-technical-disclosure-edition-011).
 
 ## License
 
