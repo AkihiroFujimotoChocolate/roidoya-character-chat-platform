@@ -515,12 +515,15 @@ The internal contract should not be fixed to one model provider's API.
 
 ### 8.1 Reference interaction envelope
 
-One implementable contract is:
+The following reference envelope illustrates one actor conversing with one Character. A service can use a different Direct Chat wire contract and resolve the same logical scope from an authorized connection or deployment binding. Section 67 describes contract profiles.
 
 ```json
 {
   "request_id": "req:01J...",
   "event_id": "line:event:abc",
+  "scope": {
+    "service_id": "service:example"
+  },
   "origin": {
     "platform": "line",
     "channel_instance": "official-account:primary"
@@ -544,7 +547,7 @@ One implementable contract is:
     ]
   },
   "limits": {
-    "deadline_ms": 20000,
+    "deadline_at": "2026-09-06T00:00:20Z",
     "max_output_messages": 5,
     "max_chars_per_message": 1000
   },
@@ -552,7 +555,15 @@ One implementable contract is:
 }
 ```
 
-The initial text-focused implementation can simplify `content` to a string. A later compatible version can introduce multiple content parts such as text and images.
+`scope.service_id` identifies the logical service under Section 34. When supplied in a request, the receiving boundary validates it against the authorized binding. This example passes effective constraints to the receiving workflow. The example counts output messages per delivery and Unicode scalar values per message. The Channel Adapter checks the Channel-specific measurement of the rendered output before sending. Section 41.1 defines how these constraints are applied.
+
+**Content representations.** One contract uses a typed `content` array from its first version and initially allows only `text` parts. New part types use declared capabilities and the contract's defined unknown-type handling. A sender uses an extension only where the recipient supports it, or uses an explicitly defined fallback. Section 23 describes compatibility and migration.
+
+A separate text contract can use `content: string`. A reader that accepts only the string shape rejects the array shape, and an array-only reader rejects the string shape. A deployment can keep both contract versions and use adapters at their declared boundaries. The text adapter maps a string to one `text` part with the original string as its `text` value. The reverse adapter returns the text for a single supported text part. For other input, it applies a contract-defined fallback or returns an explicit unsupported-content error before delivery. Both adapters validate their input and output schemas. Version selection occurs before decoding the version-specific payload under Sections 18 and 23. An unsupported version is rejected before any state change.
+
+**Revision selection.** One profile accepts an immutable publication reference in the request and checks its availability and authorization for the requested service and Character before admission. A second resolves the publication from the authorized binding during admission or workflow start and stores the resolved references in the execution context. In a further embodiment, the provenance record stores the concrete references used by execution, and a retry or replay that requires the same revisions reads the recorded references before proceeding. Sections 36 and 58.1.5 describe provenance and pinning. The reference envelope above illustrates a profile that resolves the publication internally.
+
+For compatibility checks between JSON data contracts, see Andrew Habib, Avraham Shinnar, Martin Hirzel, and Michael Pradel, [*Finding Data Compatibility Bugs with JSON Subschema Checking*](https://doi.org/10.1145/3460319.3464796), ISSTA 2021. Their method checks whether one schema accepts every instance allowed by another. An API contract also defines how clients and services interpret valid payloads.
 
 ### 8.2 Reference output envelope
 
@@ -859,7 +870,7 @@ Possible controls include:
 - estimated processing delay;
 - model-provider saturation;
 - worker concurrency;
-- per-tenant or per-character quotas;
+- per-service or per-character quotas;
 - channel reply-token deadlines.
 
 When the expected processing delay exceeds the channel's usable reply window, a system may reject, degrade, or switch response mode rather than accepting work that is likely to fail later.
@@ -871,7 +882,7 @@ Rate limits may exist at multiple levels:
 - per channel;
 - per model provider;
 - per tool provider;
-- per tenant/service;
+- per service;
 - per character;
 - per actor;
 - per worker replica;
@@ -1204,7 +1215,7 @@ Secrets are referenced through a secrets-management mechanism or runtime identit
 
 ### 21.5 Data scopes
 
-Memory, state, search, and tools can enforce explicit actor, character, tenant/service, and environment scopes so one character or conversation cannot retrieve another scope's data without authorization.
+Memory, state, search, and tools can enforce explicit service, actor, Character, and environment scopes so one character or conversation cannot retrieve another scope's data without authorization.
 
 ## 22. Observability
 
@@ -1237,7 +1248,7 @@ Stable contracts should evolve independently from internal implementation replac
 Examples include:
 
 - adding optional metadata;
-- adding a new content-part type that older consumers can ignore or reject explicitly;
+- adding a content-part type under an extension rule that preserves existing usage, such as negotiated support or the safe omission of optional parts (Section 8.1);
 - adding a new optional effect list;
 - adding an enum value when consumers have defined unknown-value behavior.
 
@@ -1432,9 +1443,9 @@ A Model Service exposes a stable generation capability while operators introduce
 
 Observability detects saturation or failure of a model, search system, tool provider, or channel API. An operator policy disables optional workflow branches, selects a fallback model/capability, reduces concurrency, applies stricter admission control, or serves a configured fallback response while preserving required state and idempotency behavior.
 
-### Combination P — Isolated multi-service or multi-tenant execution
+### Combination P — Isolated multi-service execution
 
-A shared RCCP deployment carries an explicit service or tenant scope through normalized interactions, persistence keys, memory/state access, tool authorization, quotas, telemetry, and configuration. Isolation may be logical within shared infrastructure, physical through separate databases/queues/accounts, or hybrid by sensitivity and workload.
+A shared RCCP deployment carries an explicit service scope through normalized interactions, persistence keys, memory/state access, tool authorization, quotas, telemetry, and configuration. Isolation may be logical within shared infrastructure, physical through separate databases/queues/accounts, or hybrid by sensitivity and workload.
 
 ### Combination Q — Streaming generation with channel-specific buffering
 
@@ -1462,7 +1473,7 @@ A failed interaction or workflow instance is moved to a dead-letter or quarantin
 
 ### Combination W — Layered policy enforcement around model-directed tools
 
-A character workflow exposes an approved tool catalog. A model can propose a tool call, but a separate policy boundary validates character permissions, actor authorization, service/tenant scope, parameter schema, cost/rate limits, and whether confirmation is required. A tool result is normalized before it re-enters orchestration, and the model cannot expand its own permissions by generating additional tool names or credentials.
+A character workflow exposes an approved tool catalog. A model can propose a tool call, but a separate policy boundary validates character permissions, actor authorization, service scope, parameter schema, cost/rate limits, and whether confirmation is required. A tool result is normalized before it re-enters orchestration, and the model cannot expand its own permissions by generating additional tool names or credentials.
 
 ### Combination X — Multiple characters sharing one world state
 
@@ -1672,35 +1683,11 @@ Operational changes can be separated from creator content changes. Examples incl
 
 This separation prevents lower-level operational changes from unnecessarily propagating into creator-facing artifacts.
 
-## 34. Service and tenant isolation embodiments
+## 34. Service scope and infrastructure isolation embodiments
 
-RCCP does not require multi-tenancy, but a deployment can support multiple services, customers, teams, characters, or environments by carrying an explicit scope through the architecture.
+`service_id` is the top-level logical scope of the RCCP application contract. The authorized connection or service binding establishes the effective service at admission. A normalized interaction can carry it explicitly, as in Section 8.1. Application authorization uses this scope together with the relevant actor, Character, conversation and resource identifiers. A service can reuse the same local identifiers as another service when storage and routing keys include the service scope.
 
-A normalized interaction may include:
-
-```json
-{
-  "scope": {
-    "service_id": "service:example",
-    "tenant_id": "tenant:optional",
-    "environment": "production"
-  }
-}
-```
-
-Isolation can be implemented as:
-
-- shared application and shared database with partitioned keys and authorization;
-- shared application with separate databases or schemas;
-- separate queues for workload isolation;
-- separate model/tool credentials;
-- separate cloud accounts/subscriptions/projects;
-- fully separate deployments;
-- a hybrid arrangement based on sensitivity or scale.
-
-Quotas, rate limits, memory/state access, search indexes, tools, secrets, and telemetry can all be scoped consistently.
-
-An implementation that does not need multi-tenancy can omit `tenant_id` and use one service scope per deployment.
+Operators can host several services under one cloud administrative boundary, allocate separate infrastructure boundaries to individual services, or combine these arrangements. Shared infrastructure uses scoped authorization and partitioned keys for data, queues, quotas and telemetry. Separate deployments can bind distinct databases, queues, workload identities and credentials. The chosen infrastructure governs administrative access and resource separation. For example, an Azure deployment can use a Microsoft Entra directory for identities and distinct subscriptions for resource administration. An AWS deployment can use AWS Organizations to govern separate AWS accounts. A deployment binding associates services with infrastructure resources while retaining the logical service identity in application authorization and state. Requests whose asserted service conflicts with their authorized binding are rejected at admission.
 
 ## 35. Evaluation and continuous improvement
 
@@ -1934,6 +1921,16 @@ Orchestration may ignore these capabilities and generate a generic response, lea
 For example, a rich response can define a primary text representation plus optional image, button, animation, or structured-action representations. A text-only channel emits the primary text while a richer channel emits additional parts.
 
 This preserves one character experience model without requiring every channel to implement the same presentation features.
+
+### 41.1 Effective interaction and delivery constraints
+
+The Channel Adapter resolves the available output capabilities and Channel limits for the interaction. The service applies operator policy, and Orchestration can apply a tighter internal budget. For the same count or size metric, the effective ceiling is the lowest applicable ceiling. Each constraint identifies its unit and scope. For output types and operations, the effective set is the intersection of allowed sets. For example, a Channel allowance of five messages and a service ceiling of three allow at most three, and the workflow can choose a budget of two.
+
+One contract passes the Channel limits and service policy limits separately, with their source and effective revision or observation time. For example, the envelope carries `channel_limits.max_messages = 5` and `service_limits.max_messages = 3`, with counts measured per delivery. The receiver combines applicable limits with matching metrics and intersects allowed sets before allocating its internal budget. Another contract passes already combined limits, as in Section 8.1. The trusted sending boundary computes them and the receiver enforces them as ceilings. A caller-supplied preference can further narrow the budget. For a required metric, an unavailable or incomparable limit triggers a configured conservative profile or a hold pending resolution.
+
+The admission boundary records an absolute deadline or a timestamped remaining budget. At each processing boundary, the receiver computes the remaining budget from the absolute deadline or subtracts elapsed time since the budget was stamped, including queue residence. For timestamps evaluated on another host, the profile specifies its clock tolerance or uses timeouts propagated with elapsed-time accounting. The receiver caps each downstream timeout at the remaining budget. For example, four seconds in the queue leave at most sixteen seconds from a twenty-second allowance. Retries reuse the original deadline. An exhausted budget triggers the profile's timeout handling. A deployment can use existing RPC deadline propagation where it provides these semantics. See the [gRPC deadline propagation guide](https://grpc.io/docs/guides/deadlines/#deadline-propagation).
+
+Before dispatch the Channel Adapter revalidates the rendered representation, Channel capability and reply window, current service policy and authorization under Section 100.2.1. Newly tighter limits require a compliant representation or a recorded hold or non-delivery result. A transformed representation follows the existing inspection and, where applicable, signing path in Sections 100.2.1 and 100.2.2.
 
 ## 42. Data lifecycle, retention, and derived-data cleanup
 
@@ -2371,7 +2368,7 @@ One embodiment is:
 
 1. the Teams-facing bot/adapter receives a message activity;
 2. Teams-specific activity routing and authentication remain in the adapter/SDK boundary;
-3. the adapter derives normalized actor, conversation, tenant/service, mention, and message metadata;
+3. the adapter derives normalized service, actor, conversation, mention, and message metadata;
 4. the activity ID or another stable delivery identifier is used for idempotency;
 5. the adapter admits the work and returns/acknowledges according to the Teams delivery requirements;
 6. RCCP Orchestration runs independently of the Teams SDK;
@@ -3127,19 +3124,19 @@ For one concrete deployment, use Azure Service Bus sessions for admission and Te
 The adapter derives or assigns:
 
 ```text
-channel_event_id     = LINE webhookEventId or a stable adapter event identifier
+channel_event_id     = stable event ID qualified by Channel instance when source-local
 interaction_id       = RCCP-generated or deterministically derived stable ID
-service_id           = RCCP service/tenant scope
+service_id           = top-level logical RCCP service scope
 character_id         = selected RCCP character
 external_actor_id    = LINE user/source identity in channel identity storage
 canonical_actor_id   = optional verified RCCP actor identity
 conversation_id      = RCCP conversation scope
 ordering_key         = service_id + conversation_id
 workflow_run_id      = durable execution/correlation identity
-publication_revision = immutable character/workflow publication
+publication_revision = immutable publication reference once resolved
 ```
 
-Raw channel IDs are not required in Character, Memory, or Model Service contracts. A Channel Identity component or adapter-owned mapping resolves them to the selected RCCP scope.
+Raw channel IDs are not required in Character, Memory, or Model Service contracts. A Channel Identity component or adapter-owned mapping resolves them to the selected RCCP scope. Admission resolves the service from the authenticated connection. Within that service, the Channel event identifier is unique for the source. A source-local event key is qualified by its Channel instance before it becomes the normalized Channel event identifier. The inbox key is the tuple of service and normalized Channel event identifier. Ordering uses the tuple of service and conversation identifiers, encoded unambiguously for the chosen broker. See Section 34 for infrastructure isolation.
 
 #### 58.1.3 Ingress transaction
 
@@ -3170,7 +3167,7 @@ The exact number of stored states can differ; the required property is that admi
 
 #### 58.1.4 Per-conversation ordering
 
-The queue message carries:
+In the admission-time pinning embodiment the queue message carries:
 
 ```json
 {
@@ -3188,7 +3185,7 @@ Ordering at the broker does not eliminate application idempotency. The worker lo
 
 #### 58.1.5 Publication pinning
 
-At admission, or at the configured workflow-start boundary, the system resolves a publication:
+At admission, or at the configured workflow-start boundary, the system resolves and records a publication. In the workflow-start embodiment, the queue message in Section 58.1.4 omits `publication_revision`. The workflow persists the resolved mapping against the interaction before executing it. A duplicate start loads the existing mapping.
 
 ```json
 {
@@ -3295,7 +3292,7 @@ A zero-row update signals a conflict. The workflow reloads the current state and
 
 #### 58.1.10 Channel delivery
 
-The workflow produces a channel-neutral output intent. The LINE adapter receives or reads that intent and evaluates current delivery capability.
+The workflow produces a channel-neutral output intent. The LINE adapter receives or reads that intent and applies the final checks in Section 41.1.
 
 If the original reply token is still usable, it uses the reply operation. If not, and proactive/push delivery is configured and permitted, it may use that path. Otherwise it records a non-delivery result while preserving the already committed character state according to the workflow's delivery semantics.
 
@@ -4280,7 +4277,7 @@ One embodiment defines a long-lived Direct Chat profile with:
 - one conversation scope;
 - typed content parts;
 - stable interaction and message identifiers;
-- tenant and service scopes;
+- service scope under Section 34;
 - channel type and channel-instance origin;
 - a response containing one or more channel-neutral character messages or an explicit error.
 
@@ -4296,11 +4293,12 @@ The Direct Chat profile and Multi-party profile can coexist. Adding multi-party 
 
 ### 67.1 Illustrative direct-chat envelope
 
+This example illustrates a Direct Chat contract profile. An implementation can supply logical service scope through an authorized binding and use a profile-specific wire layout. Section 8.1 gives another reference envelope.
+
 ```json
 {
   "interaction_id": "interaction:01J...",
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat"
   },
   "origin": {
@@ -4323,7 +4321,7 @@ The Direct Chat profile and Multi-party profile can coexist. Adding multi-party 
 
 `interaction_id` identifies admitted processing, while `message.id` identifies the input message. They can coexist even when both are derived from one external event.
 
-Character, actor, conversation, tenant, service, and channel-instance identifiers remain separate because they have different lifecycles and scopes. A LINE identity and a Discord identity do not become the same actor ID merely because a later consented identity link exists.
+Character, actor, conversation, service, and Channel instance identifiers remain separate because they have different lifecycles and scopes. A LINE identity and a Discord identity do not become the same actor ID merely because a later consented identity link exists.
 
 ### 67.2 Multi-party profile alternatives
 
@@ -4565,7 +4563,6 @@ An Entity Record identifies something that can appear in knowledge, memory, rela
   "canonical_name": "Moon Observatory",
   "aliases": ["Lunar Observatory"],
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat",
     "world_id": "world:example"
   },
@@ -4578,7 +4575,7 @@ An Entity Record identifies something that can appear in knowledge, memory, rela
 }
 ```
 
-`entity_id` is stable within the declared scope. A renamed place retains its identifier. Alternate timelines, worlds, services, or tenant namespaces use separate scope or revision identifiers rather than assuming that equal display names identify the same entity.
+`entity_id` is stable within the declared scope. A renamed place retains its identifier. Alternate timelines, worlds or services use separate scope or revision identifiers rather than assuming that equal display names identify the same entity.
 
 ### 73.2 Qualified knowledge statement
 
@@ -4606,7 +4603,6 @@ A Qualified Knowledge Statement connects a subject to an object or literal throu
     "valid_until": null
   },
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat",
     "world_id": "world:example",
     "character_id": "char:alice"
@@ -4651,7 +4647,6 @@ In a separate-memory embodiment, the record is:
 {
   "memory_id": "memory:01J...",
   "owner_scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat",
     "actor_id": "actor:123",
     "character_id": "char:alice"
@@ -4698,7 +4693,6 @@ A text-only memory store, statement-only graph, dual text-and-graph record, immu
     "id": "actor:123"
   },
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:character-chat"
   },
   "dimensions": {
@@ -4969,7 +4963,7 @@ Build work is idempotent by publication revision and projection type. Verificati
 In the query-led embodiment:
 
 1. classify or deterministically map the interaction to zero or more topic and entity identifiers;
-2. build an authorization scope from tenant, service, actor, character, conversation, channel, audience, and consent information;
+2. build an authorization scope from service, actor, character, conversation, Channel, audience, and consent information;
 3. query text, vector, graph, or relational indexes for candidates;
 4. reject candidates whose source revision is not active;
 5. reject candidates outside the authorization scope;
@@ -5056,7 +5050,7 @@ For every external event, the Channel Adapter:
 3. maps channel-local actor, conversation, thread, destination, and message identifiers;
 4. stores an idempotency record before acknowledging asynchronous processing;
 5. writes a Normalized Event containing one origin actor and one source message;
-6. routes the event to a conversation coordinator by tenant, service, and conversation scope;
+6. routes the event to a conversation coordinator by service and conversation scope;
 7. retains channel-specific reply correlation outside the channel-neutral event.
 
 One external event is not required to represent a complete conversational turn.
@@ -5449,7 +5443,7 @@ An implementation may combine adjacent boundaries in one transaction when storag
 
 ### 78.1 Failure handling
 
-**Knowledge source unavailable:** use an already verified active projection, an immutable local bundle, a configured reduced-context path, or fail closed for required knowledge. Do not substitute another tenant, world, or publication revision.
+**Knowledge source unavailable:** use an already verified active projection, an immutable local bundle, a configured reduced-context path, or fail closed for required knowledge. Do not substitute another service, world, or publication revision.
 
 **Graph traversal exceeds limits:** stop at configured depth/fan-out/cost, retain already authorized results, mark truncation in provenance, and continue or fail according to whether omitted knowledge was optional.
 
@@ -5475,7 +5469,6 @@ An implementation may combine adjacent boundaries in one transaction when storag
 
 Knowledge and continuity are keyed by any one or combination of:
 
-- tenant;
 - service;
 - world or IP;
 - publication;
@@ -5782,7 +5775,7 @@ Deterministic and learned matchers return evidence rather than directly executin
   "publication_id": "policy-publication:2026-09-example",
   "layer": "operator",
   "scope": {
-    "tenant_ids": ["tenant:example"],
+    "service_ids": ["service:example"],
     "character_ids": ["character:guide"],
     "channel_types": ["line", "discord"],
     "surfaces": ["channel_input_normalized", "model_text_output"]
@@ -5880,7 +5873,7 @@ An exception can be owned by the prohibited-term record, referenced by it, or re
 3. **Negative dictionary.** A permitted term list is evaluated before or together with a prohibited dictionary.
 4. **Longest-match resolution.** The longest valid lexical match wins when shorter matches are fully contained and both rules declare the same competition group.
 5. **Explicit override edge.** Rule A declares `suppresses: [B]`; cycles are rejected at publication time.
-6. **Scoped adjudication.** A reviewed false positive creates an expiring or permanent exception limited by tenant, Character, language, Channel, actor class, or phrase hash.
+6. **Scoped adjudication.** A reviewed false positive creates an expiring or permanent exception limited by service, Character, language, Channel, actor class, or phrase hash.
 
 For example, a prohibited Japanese term record can own `ウーマンコミュニケーション` and `ウルトラマンコスモス` as containing-phrase exceptions. Only that record's evidence wholly inside the permitted phrase is suppressed; other records and spans remain active.
 
@@ -5931,7 +5924,7 @@ The authority hierarchy is explicit and versioned. Independent embodiments inclu
 
 - **Monotonic restriction:** developer rules establish a non-overridable floor; operators and creators can only add restrictions or choose among allowed actions.
 - **Delegated relaxation:** developers define rule namespaces and limits that an operator may relax; the operator can delegate a narrower subset to a creator.
-- **Tenant-first policy:** an operator controls all tenant rules except immutable platform integrity rules; creators configure Character behavior inside the tenant envelope.
+- **Service policy:** an operator controls the rules for the assigned service within platform integrity rules. Creators configure Character behavior under the applicable service rules.
 - **Signed total ordering:** every rule carries an authority rank and signature, and a publication-time validator rejects ranks the signer is not authorized to issue.
 - **Intersection policy:** an interaction is allowed only when developer, operator, and creator decisions all allow it; each layer can return a different user-facing action.
 
@@ -6047,7 +6040,7 @@ Message-level detection can hide mixed language; span detection can be unstable 
 }
 ```
 
-Controls follow Section 80.9: developers can restrict translation services, operators can set tenant languages and cost limits, and creators can narrow languages or select Character-specific response and clarification behavior.
+Controls follow Section 80.9: developers can restrict translation services, operators can set service languages and cost limits, and creators can narrow languages or select Character-specific response and clarification behavior.
 
 ### 81.5 Mixed, unknown, and low-confidence behavior
 
@@ -6124,7 +6117,7 @@ If two trusted instructions conflict, the same explicit policy-resolution mechan
 
 ### 82.4 Tool and external-effect boundary
 
-A model can propose but not authorize a Tool Request. The Tool Service validates tool, caller, Character, actor, tenant, purpose, arguments, budgets, confirmation, data scope, and effect-journal state.
+A model can propose but not authorize a Tool Request. The Tool Service validates tool, caller, Character, actor, service, purpose, arguments, budgets, confirmation, data scope, and effect-journal state.
 
 High-impact or irreversible effects can require explicit user or operator confirmation bound to an immutable operation preview. Read-only and mutating capabilities use different identifiers and credentials. Tool results return as untrusted or tool-attested data according to the connector, never as developer instructions.
 
@@ -6687,7 +6680,6 @@ One implementable record is:
 ```json
 {
   "event_id": "world-event:01K...",
-  "tenant_id": "tenant:example",
   "service_id": "service:example",
   "world_id": "world:harbor-city",
   "scene_id": "scene:winter-plaza",
@@ -6714,7 +6706,6 @@ The event states that an occurrence was committed. A `SpeechEvent` states that a
 ```json
 {
   "projection_id": "observation:01K...",
-  "tenant_id": "tenant:example",
   "service_id": "service:example",
   "world_id": "world:harbor-city",
   "source_event_ids": ["world-event:01K..."],
@@ -6743,7 +6734,6 @@ Projection generation can be deterministic, creator-authored, rule-based, model-
 ```json
 {
   "transition_id": "subjective-transition:01K...",
-  "tenant_id": "tenant:example",
   "service_id": "service:example",
   "world_id": "world:harbor-city",
   "character_id": "character:alice",
@@ -6812,7 +6802,7 @@ Independent intervention classes include:
 
 Creator and Operator authority can overlap or remain separate. A deployment can allow Creators to control story content and Character intent while Operators control activation time, operational safety, quotas, rollback, and emergency suspension. An Operator creates story content only when delegated by the applicable service or Creator policy.
 
-Neither role receives Actor-private data, consent-restricted continuity, secret credentials, or unrelated tenant scope merely because it can alter fictional World or Character state. Existing consent, deletion, privacy, tenant, and Developer-controlled security boundaries remain independently enforceable.
+Neither role receives Actor-private data, consent-restricted continuity, secret credentials, or unrelated service scope merely because it can alter fictional World or Character state. Existing consent, deletion, privacy, service, and Developer-controlled security boundaries remain independently enforceable.
 
 ### 91.2 Intervention record
 
@@ -6826,7 +6816,6 @@ Neither role receives Actor-private data, consent-restricted continuity, secret 
     "delegation_id": "delegation:world-harbor-city"
   },
   "scope": {
-    "tenant_id": "tenant:example",
     "service_id": "service:example",
     "world_id": "world:harbor-city",
     "scene_ids": ["scene:winter-plaza"],
@@ -6960,7 +6949,7 @@ Logical responsibilities include World State ownership, Simulation Orchestration
 
 One complete embodiment performs the following steps:
 
-1. Resolve the active tenant, service, World, Character, workflow, intervention, policy, and Autonomy Profile revisions for the trigger.
+1. Resolve the active service, World, Character, workflow, intervention, policy, and Autonomy Profile revisions for the trigger.
 2. Admit an Actor request, Character proposal, Tool result, scheduled occurrence, Creator intervention, Operator intervention, or deterministic world-process trigger under a stable identifier and idempotency key.
 3. Authenticate the principal or system trigger and resolve its authority separately from the proposal content.
 4. Load the expected World, entity, scene, relationship, and relevant Character subjective revisions.
