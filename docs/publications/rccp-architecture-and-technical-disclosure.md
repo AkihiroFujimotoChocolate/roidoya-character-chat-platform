@@ -1,8 +1,8 @@
 # Roidoya Character Chat Platform — Architecture and Technical Disclosure
 
 **Status:** Public Edition\
-**Edition:** #10\
-**Publication date:** 2026-11-12 (Asia/Tokyo)\
+**Edition:** #11\
+**Publication date:** 2026-11-15 (Asia/Tokyo)\
 **Author:** Akihiro Fujimoto\
 **Project:** Roidoya Character Chat Platform (RCCP)\
 **Canonical repository:** `AkihiroFujimotoChocolate/roidoya-character-chat-platform`\
