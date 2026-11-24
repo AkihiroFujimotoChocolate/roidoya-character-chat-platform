@@ -107,12 +107,3 @@ public abstract class ConnectionManagementClient : IConnectionManagementClient
     }
 }
 
-public sealed class V01ConnectionManagementClient(
-    [Microsoft.Extensions.DependencyInjection.FromKeyedServices("connection-0.1")] HttpClient client,
-    IConfiguration configuration)
-    : ConnectionManagementClient(client, configuration, "0.1");
-
-public sealed class V02ConnectionManagementClient(
-    [Microsoft.Extensions.DependencyInjection.FromKeyedServices("connection-0.2")] HttpClient client,
-    IConfiguration configuration)
-    : ConnectionManagementClient(client, configuration, "0.2");

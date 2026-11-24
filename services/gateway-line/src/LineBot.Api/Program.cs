@@ -22,8 +22,8 @@ builder.Services.AddHttpClient("0.1").AddAsKeyed();
 builder.Services.AddHttpClient("0.2").AddAsKeyed();
 builder.Services.AddHttpClient("connection-0.1").AddAsKeyed();
 builder.Services.AddHttpClient("connection-0.2").AddAsKeyed();
-builder.Services.AddKeyedScoped<IConnectionManagementClient, V01ConnectionManagementClient>("0.1");
-builder.Services.AddKeyedScoped<IConnectionManagementClient, V02ConnectionManagementClient>("0.2");
+builder.Services.AddKeyedScoped<IConnectionManagementClient, LineBot.Api.Contracts.V0_1.V01ConnectionManagementClient>("0.1");
+builder.Services.AddKeyedScoped<IConnectionManagementClient, LineBot.Api.Contracts.V0_2.V02ConnectionManagementClient>("0.2");
 
 builder.Services.AddKeyedScoped<IInputAssembler<LineBot.Api.Contracts.V0_1.ChatServiceRequest>,
     LineBot.Api.Contracts.V0_1.InputAssembler>("0.1");
