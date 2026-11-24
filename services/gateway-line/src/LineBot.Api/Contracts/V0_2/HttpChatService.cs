@@ -3,9 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using LineBot.Api.Contracts;
-using LineBot.Api.Models;
-using LineBot.Api.Services;
+using LineBot.Api.Chat;
 
 namespace LineBot.Api.Contracts.V0_2;
 
@@ -16,7 +14,7 @@ public sealed class HttpChatService : IChatService<ChatServiceRequest>
     private readonly ILogger<HttpChatService> _logger;
 
     public HttpChatService(
-        [Microsoft.Extensions.DependencyInjection.FromKeyedServices("0.2")] HttpClient client,
+        [Microsoft.Extensions.DependencyInjection.FromKeyedServices] HttpClient client,
         IConfiguration configuration,
         ILogger<HttpChatService> logger)
     {

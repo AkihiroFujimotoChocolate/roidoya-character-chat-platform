@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 using LineBot.Api.ConnectionManagement;
-using LineBot.Api.Contracts;
-using LineBot.Api.Models;
+using LineBot.Api.Chat;
 using LineBot.Api.Processing;
 using LineBot.Api.Queueing;
 using LineBot.Api.Queueing.Local;
 using LineBot.Api.Services;
 using LineBot.Api.Workers;
-using Microsoft.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 var version = builder.Configuration["ContractVersion"] ?? "0.1";
@@ -31,18 +29,14 @@ builder.Services.AddKeyedScoped<IInputAssembler<LineBot.Api.Contracts.V0_1.ChatS
     LineBot.Api.Contracts.V0_1.InputAssembler>("0.1");
 builder.Services.AddKeyedScoped<IChatService<LineBot.Api.Contracts.V0_1.ChatServiceRequest>,
     LineBot.Api.Contracts.V0_1.HttpChatService>("0.1");
-builder.Services.AddKeyedScoped<IContractServices>("0.1", (serviceProvider, key) =>
-    new ContractServices<LineBot.Api.Contracts.V0_1.ChatServiceRequest>(
-        serviceProvider.GetRequiredKeyedService<IInputAssembler<LineBot.Api.Contracts.V0_1.ChatServiceRequest>>(key),
-        serviceProvider.GetRequiredKeyedService<IChatService<LineBot.Api.Contracts.V0_1.ChatServiceRequest>>(key)));
+builder.Services.AddKeyedScoped<IContractServices,
+    ContractServices<LineBot.Api.Contracts.V0_1.ChatServiceRequest>>("0.1");
 builder.Services.AddKeyedScoped<IInputAssembler<LineBot.Api.Contracts.V0_2.ChatServiceRequest>,
     LineBot.Api.Contracts.V0_2.InputAssembler>("0.2");
 builder.Services.AddKeyedScoped<IChatService<LineBot.Api.Contracts.V0_2.ChatServiceRequest>,
     LineBot.Api.Contracts.V0_2.HttpChatService>("0.2");
-builder.Services.AddKeyedScoped<IContractServices>("0.2", (serviceProvider, key) =>
-    new ContractServices<LineBot.Api.Contracts.V0_2.ChatServiceRequest>(
-        serviceProvider.GetRequiredKeyedService<IInputAssembler<LineBot.Api.Contracts.V0_2.ChatServiceRequest>>(key),
-        serviceProvider.GetRequiredKeyedService<IChatService<LineBot.Api.Contracts.V0_2.ChatServiceRequest>>(key)));
+builder.Services.AddKeyedScoped<IContractServices,
+    ContractServices<LineBot.Api.Contracts.V0_2.ChatServiceRequest>>("0.2");
 
 builder.Services.AddHttpClient<LineReplyService>();
 builder.Services.AddScoped<ILineReplyService>(serviceProvider => serviceProvider.GetRequiredService<LineReplyService>());
@@ -128,7 +122,7 @@ static async Task<IResult> ReceiveWebhookAsync(
     IReadOnlyList<QueueItem> items;
     try
     {
-        items = verified!.SplitEvents(contractVersion == "0.2" ? connectionId : null);
+        items = WebhookEventSplitter.SplitEvents(verified!, contractVersion == "0.2" ? connectionId : null);
     }
     catch (System.Text.Json.JsonException ex)
     {

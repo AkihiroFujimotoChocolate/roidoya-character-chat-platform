@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-using LineBot.Api.Models;
+using LineBot.Api.Chat;
 using LineBot.Api.Processing;
-using LineBot.Api.Services;
+using LineBot.Api.Queueing;
 
-namespace LineBot.Api.Contracts;
+namespace LineBot.Api.Chat;
 
 public enum PreparationOutcome { Ready, Failed }
 

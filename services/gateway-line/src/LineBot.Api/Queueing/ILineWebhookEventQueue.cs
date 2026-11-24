@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-using LineBot.Api.Models;
-
 namespace LineBot.Api.Queueing;
 
 public enum QueueWriteResult

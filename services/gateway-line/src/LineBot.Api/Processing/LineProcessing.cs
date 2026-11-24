@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using LineBot.Api.Models;
+using LineBot.Api.Queueing;
 
 namespace LineBot.Api.Processing;
 
@@ -43,9 +43,15 @@ public sealed class VerifiedLineWebhook
         return true;
     }
 
-    public IReadOnlyList<QueueItem> SplitEvents(string? connectionId)
+}
+
+public static class WebhookEventSplitter
+{
+    public static IReadOnlyList<QueueItem> SplitEvents(
+        VerifiedLineWebhook webhook,
+        string? connectionId)
     {
-        if (!_root.TryGetProperty("events", out var events) || events.ValueKind != JsonValueKind.Array)
+        if (!webhook.Root.TryGetProperty("events", out var events) || events.ValueKind != JsonValueKind.Array)
             return Array.Empty<QueueItem>();
 
         var items = new List<QueueItem>();
@@ -55,7 +61,7 @@ public sealed class VerifiedLineWebhook
             using (var writer = new Utf8JsonWriter(stream))
             {
                 writer.WriteStartObject();
-                foreach (var property in _root.EnumerateObject())
+                foreach (var property in webhook.Root.EnumerateObject())
                 {
                     if (property.NameEquals("events"))
                         continue;

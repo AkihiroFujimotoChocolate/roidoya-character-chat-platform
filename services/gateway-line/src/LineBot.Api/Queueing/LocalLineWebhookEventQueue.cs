@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 using System.Threading.Channels;
-using LineBot.Api.Models;
 
 namespace LineBot.Api.Queueing.Local;
 

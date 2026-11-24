@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 using System.Text.Json.Serialization;
-using LineBot.Api.Models;
+using LineBot.Api.Chat;
 
 namespace LineBot.Api.Contracts.V0_1;
 

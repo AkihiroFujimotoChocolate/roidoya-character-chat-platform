@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-using LineBot.Api.Models;
+using LineBot.Api.Chat;
 
-namespace LineBot.Api.Services;
+namespace LineBot.Api.Chat;
 
 public interface IChatService<TRequest>
     where TRequest : class, IChatServiceRequest

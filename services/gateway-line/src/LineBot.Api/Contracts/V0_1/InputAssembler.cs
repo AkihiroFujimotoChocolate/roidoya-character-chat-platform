@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 using System.Text.Json;
+using LineBot.Api.Chat;
 using LineBot.Api.ConnectionManagement;
-using LineBot.Api.Models;
 using LineBot.Api.Processing;
+using LineBot.Api.Queueing;
 
 namespace LineBot.Api.Contracts.V0_1;
 
@@ -21,7 +22,23 @@ public sealed class InputAssembler : IInputAssembler<ChatServiceRequest>
         try
         {
             var webhookEvent = item.Webhook.GetProperty("event");
-            var connection = await _connections.GetConnectionAsync(null, cancellationToken);
+            LineConnection? connection;
+            try
+            {
+                connection = await _connections.GetConnectionAsync(null, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                return Failed($"Connection lookup failed: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                return Failed($"Connection lookup returned invalid JSON: {ex.Message}");
+            }
             if (connection is null)
                 return Failed("Connection lookup did not return usable LINE credentials.");
 
@@ -49,10 +66,6 @@ public sealed class InputAssembler : IInputAssembler<ChatServiceRequest>
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
-        }
-        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
-        {
-            return Failed($"Could not assemble c0.1 Chat input: {ex.Message}");
         }
     }
 

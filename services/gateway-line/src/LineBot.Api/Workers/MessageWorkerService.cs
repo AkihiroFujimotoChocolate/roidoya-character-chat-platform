@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-using LineBot.Api.Contracts;
-using LineBot.Api.Models;
+using LineBot.Api.Chat;
 using LineBot.Api.Processing;
 using LineBot.Api.Queueing;
 using LineBot.Api.Services;

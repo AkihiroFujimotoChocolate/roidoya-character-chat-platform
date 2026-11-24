@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 using System.Text.Json;
+using LineBot.Api.Chat;
 using LineBot.Api.ConnectionManagement;
-using LineBot.Api.Models;
 using LineBot.Api.Processing;
+using LineBot.Api.Queueing;
 
 namespace LineBot.Api.Contracts.V0_2;
 
@@ -21,7 +22,23 @@ public sealed class InputAssembler : IInputAssembler<ChatServiceRequest>
         try
         {
             var webhookEvent = item.Webhook.GetProperty("event");
-            var connection = await _connections.GetConnectionAsync(item.ConnectionId, cancellationToken);
+            LineConnection? connection;
+            try
+            {
+                connection = await _connections.GetConnectionAsync(item.ConnectionId, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                return Failed($"Connection lookup failed: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                return Failed($"Connection lookup returned invalid JSON: {ex.Message}");
+            }
             if (connection is null)
                 return Failed("Connection lookup did not return usable LINE credentials or character data.");
             var userId = webhookEvent.GetProperty("source").GetProperty("userId").GetString();
@@ -36,7 +53,23 @@ public sealed class InputAssembler : IInputAssembler<ChatServiceRequest>
                 string.IsNullOrWhiteSpace(destination))
                 return Failed("Webhook event is missing values required for Chat or LINE reply.");
 
-            var actorId = await _connections.ResolveActorAsync(userId, cancellationToken);
+            string? actorId;
+            try
+            {
+                actorId = await _connections.ResolveActorAsync(userId, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                return Failed($"Actor lookup failed: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                return Failed($"Actor lookup returned invalid JSON: {ex.Message}");
+            }
             if (string.IsNullOrWhiteSpace(actorId))
                 return Failed("Actor lookup did not return a usable actor ID.");
 
@@ -56,10 +89,6 @@ public sealed class InputAssembler : IInputAssembler<ChatServiceRequest>
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
-        }
-        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
-        {
-            return Failed($"Could not assemble c0.2 Chat input: {ex.Message}");
         }
     }
 
