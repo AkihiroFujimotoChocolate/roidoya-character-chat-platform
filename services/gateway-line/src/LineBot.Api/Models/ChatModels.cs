@@ -1,60 +1,30 @@
 // SPDX-License-Identifier: MIT
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 namespace LineBot.Api.Models;
 
 public class LineReplyRequest
 {
-    [JsonPropertyName("replyToken")]
     public string ReplyToken { get; set; } = string.Empty;
-
-    [JsonPropertyName("messages")]
     public List<LineMessage> Messages { get; set; } = new();
 }
 
 public class LineMessage
 {
-    [JsonPropertyName("type")]
     public string Type { get; set; } = "text";
-
-    [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;
 }
 
 public class QueueItem
 {
-    public string WebhookEventId { get; set; } = string.Empty;
-    public string ReplyToken { get; set; } = string.Empty;
-    public string UserKey { get; set; } = string.Empty;
-    public string MessageText { get; set; } = string.Empty;
-    public string InteractionId { get; set; } = string.Empty;
-    public string ChannelType { get; set; } = string.Empty;
-    public string ChannelInstanceId { get; set; } = string.Empty;
-    public string ActorId { get; set; } = string.Empty;
-    public string CharacterId { get; set; } = string.Empty;
-    public string InputMessageId { get; set; } = string.Empty;
-    public bool IsRedelivery { get; set; }
-    public DateTime QueuedAt { get; set; } = DateTime.UtcNow;
+    public JsonElement Webhook { get; set; }
+    public string? ConnectionId { get; set; }
 }
 
-public class ChatServiceRequest
-{
-    public string? RequestId { get; set; }
-    public string MessageText { get; set; } = string.Empty;
-    public string InteractionId { get; set; } = string.Empty;
-    public string ChannelType { get; set; } = string.Empty;
-    public string ChannelInstanceId { get; set; } = string.Empty;
-    public string ActorId { get; set; } = string.Empty;
-    public string CharacterId { get; set; } = string.Empty;
-    public string InputMessageId { get; set; } = string.Empty;
-    public int TimeoutSeconds { get; set; } = 20;
-    public int MaxCharsPerMessage { get; set; } = 1000;
-    public string ConversationId { get; set; } = string.Empty;
-    public string AuthorUserId { get; set; } = string.Empty;
-}
+public interface IChatServiceRequest { }
 
 public class ChatServiceResult
 {
-    public string Status { get; set; } = string.Empty;
     public List<string> Messages { get; set; } = new();
+    public string Status { get; set; } = string.Empty;
 }

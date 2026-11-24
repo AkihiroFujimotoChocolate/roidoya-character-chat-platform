@@ -3,7 +3,9 @@ using LineBot.Api.Models;
 
 namespace LineBot.Api.Services;
 
-public interface IChatService
+public interface IChatService<TRequest>
+    where TRequest : class, IChatServiceRequest
 {
-    Task<ChatServiceResult> GenerateReplyAsync(ChatServiceRequest request, CancellationToken cancellationToken = default);
+    Task<ChatServiceResult> GenerateReplyAsync(
+        TRequest request, CancellationToken cancellationToken = default);
 }

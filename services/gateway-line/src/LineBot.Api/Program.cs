@@ -1,232 +1,165 @@
 // SPDX-License-Identifier: MIT
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using Microsoft.AspNetCore.Http.Extensions;
+using LineBot.Api.ConnectionManagement;
+using LineBot.Api.Contracts;
 using LineBot.Api.Models;
+using LineBot.Api.Processing;
+using LineBot.Api.Queueing;
+using LineBot.Api.Queueing.Local;
 using LineBot.Api.Services;
+using LineBot.Api.Workers;
+using Microsoft.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
+var version = builder.Configuration["ContractVersion"] ?? "0.1";
+if (version is not ("0.1" or "0.2"))
+    throw new InvalidOperationException($"Unsupported ContractVersion '{version}'.");
 
-// Add services
-builder.Services.AddHttpClient<HttpV01ChatService>();
-builder.Services.AddHttpClient<HttpV02ChatService>();
-builder.Services.AddHttpClient<ILineReplyService, LineReplyService>();
-builder.Services.AddSingleton<ILocalQueueService, LocalQueueService>();
-builder.Services.AddSingleton<IUserLockService, UserLockService>();
+builder.Services.AddSingleton<ILineWebhookEventQueue, LocalLineWebhookEventQueue>();
 builder.Services.AddSingleton<IIdempotencyService, IdempotencyService>();
+builder.Services.AddScoped<ILineEventFilter, LineEventFilter>();
+builder.Services.AddScoped<IContractServicesResolver>(serviceProvider =>
+    new ContractServiceResolver(version, serviceProvider));
 
-builder.Services.AddScoped<IChatService>(serviceProvider =>
-{
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var apiVersion = configuration.GetValue<string>("Chat:ApiVersion", "0.1");
-    return apiVersion switch
-    {
-        "0.1" => serviceProvider.GetRequiredService<HttpV01ChatService>(),
-        "0.2" => serviceProvider.GetRequiredService<HttpV02ChatService>(),
-        _ => throw new InvalidOperationException($"Unsupported Chat:ApiVersion '{apiVersion}'.")
-    };
-});
+builder.Services.AddHttpClient("0.1").AddAsKeyed();
+builder.Services.AddHttpClient("0.2").AddAsKeyed();
+builder.Services.AddHttpClient("connection-0.1").AddAsKeyed();
+builder.Services.AddHttpClient("connection-0.2").AddAsKeyed();
+builder.Services.AddKeyedScoped<IConnectionManagementClient, V01ConnectionManagementClient>("0.1");
+builder.Services.AddKeyedScoped<IConnectionManagementClient, V02ConnectionManagementClient>("0.2");
 
-builder.Services.AddScoped<HttpV01ChatService>();
-builder.Services.AddScoped<HttpV02ChatService>();
+builder.Services.AddKeyedScoped<IInputAssembler<LineBot.Api.Contracts.V0_1.ChatServiceRequest>,
+    LineBot.Api.Contracts.V0_1.InputAssembler>("0.1");
+builder.Services.AddKeyedScoped<IChatService<LineBot.Api.Contracts.V0_1.ChatServiceRequest>,
+    LineBot.Api.Contracts.V0_1.HttpChatService>("0.1");
+builder.Services.AddKeyedScoped<IContractServices>("0.1", (serviceProvider, key) =>
+    new ContractServices<LineBot.Api.Contracts.V0_1.ChatServiceRequest>(
+        serviceProvider.GetRequiredKeyedService<IInputAssembler<LineBot.Api.Contracts.V0_1.ChatServiceRequest>>(key),
+        serviceProvider.GetRequiredKeyedService<IChatService<LineBot.Api.Contracts.V0_1.ChatServiceRequest>>(key)));
+builder.Services.AddKeyedScoped<IInputAssembler<LineBot.Api.Contracts.V0_2.ChatServiceRequest>,
+    LineBot.Api.Contracts.V0_2.InputAssembler>("0.2");
+builder.Services.AddKeyedScoped<IChatService<LineBot.Api.Contracts.V0_2.ChatServiceRequest>,
+    LineBot.Api.Contracts.V0_2.HttpChatService>("0.2");
+builder.Services.AddKeyedScoped<IContractServices>("0.2", (serviceProvider, key) =>
+    new ContractServices<LineBot.Api.Contracts.V0_2.ChatServiceRequest>(
+        serviceProvider.GetRequiredKeyedService<IInputAssembler<LineBot.Api.Contracts.V0_2.ChatServiceRequest>>(key),
+        serviceProvider.GetRequiredKeyedService<IChatService<LineBot.Api.Contracts.V0_2.ChatServiceRequest>>(key)));
+
+builder.Services.AddHttpClient<LineReplyService>();
+builder.Services.AddScoped<ILineReplyService>(serviceProvider => serviceProvider.GetRequiredService<LineReplyService>());
 builder.Services.AddHostedService<MessageWorkerService>();
 
 var app = builder.Build();
 
-// Health probe
-app.MapGet("/", (IConfiguration cfg) =>
+app.MapGet("/", (IConfiguration configuration) =>
+    Results.Ok($"LINE Webhook Gateway ({configuration.GetValue<string>("Runtime:Platform", "Local")})"));
+
+if (version == "0.1")
 {
-    var platform = cfg.GetValue<string>("Runtime:Platform", "Local");
-    return Results.Ok($"LINE Webhook Gateway ({platform})");
-});
-
-// POST /line/webhook
-app.MapPost("/line/webhook", async (HttpRequest req, IConfiguration cfg, ILoggerFactory lf, 
-    ILocalQueueService queueService, IUserLockService lockService, ILineReplyService replyService) =>
+    app.MapPost("/line/webhook", (
+        HttpRequest request,
+        [Microsoft.Extensions.DependencyInjection.FromKeyedServices("0.1")] IConnectionManagementClient connections,
+        ILineEventFilter filter,
+        ILineWebhookEventQueue queue,
+        ILineReplyService reply,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        ReceiveWebhookAsync(request, null, version, connections, filter, queue, reply, configuration,
+            loggerFactory.CreateLogger("Webhook"), cancellationToken));
+}
+else
 {
-    var log = lf.CreateLogger("Webhook");
-    var channelSecret = cfg["Line:ChannelSecret"];
-
-    if (string.IsNullOrWhiteSpace(channelSecret))
-        return Results.Problem("Channel secret not configured", statusCode: 500);
-
-    // Get X-Line-Request-Id for logging
-    req.Headers.TryGetValue("X-Line-Request-Id", out var requestIdHeader);
-    var requestId = requestIdHeader.FirstOrDefault() ?? "unknown";
-
-    // Read raw body bytes
-    using var ms = new MemoryStream();
-    await req.Body.CopyToAsync(ms);
-    var bodyBytes = ms.ToArray();
-
-    // Get signature header
-    if (!req.Headers.TryGetValue("X-Line-Signature", out var sigHeader) ||
-        string.IsNullOrWhiteSpace(sigHeader))
-    {
-        log.LogWarning("Missing X-Line-Signature for {Method} {Url}, RequestId={RequestId}", 
-            req.Method, req.GetDisplayUrl(), requestId);
-        return Results.BadRequest("missing signature");
-    }
-
-    // Compute HMAC-SHA256(rawBody) with channel secret
-    var secretBytes = Encoding.UTF8.GetBytes(channelSecret);
-    using var hmac = new HMACSHA256(secretBytes);
-    var computed = hmac.ComputeHash(bodyBytes);
-
-    // Compare to header (base64)
-    byte[] headerBytes;
-    try { headerBytes = Convert.FromBase64String(sigHeader!); }
-    catch 
-    { 
-        log.LogWarning("Invalid signature encoding for {Method} {Url}, RequestId={RequestId}", 
-            req.Method, req.GetDisplayUrl(), requestId);
-        return Results.BadRequest("invalid signature encoding"); 
-    }
-
-    var ok = CryptographicOperations.FixedTimeEquals(headerBytes, computed);
-    if (!ok)
-    {
-        log.LogWarning("Invalid signature for {Method} {Url}, RequestId={RequestId}", 
-            req.Method, req.GetDisplayUrl(), requestId);
-        return Results.BadRequest("invalid signature");
-    }
-
-    // Parse JSON body
-    WebhookRequestBody? webhookRequest;
-    try
-    {
-        var bodyJson = Encoding.UTF8.GetString(bodyBytes);
-        webhookRequest = JsonSerializer.Deserialize<WebhookRequestBody>(bodyJson, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
-    }
-    catch (Exception ex)
-    {
-        log.LogWarning(ex, "Failed to parse webhook JSON for RequestId={RequestId}", requestId);
-        return Results.BadRequest("invalid JSON");
-    }
-
-    if (webhookRequest?.Events == null)
-    {
-        log.LogWarning("No events in webhook request for RequestId={RequestId}", requestId);
-        return Results.Ok(); // Return 200 OK even for empty events
-    }
-
-    log.LogInformation("Webhook verification OK, processing {EventCount} events (bytes={Length}), RequestId={RequestId}", 
-        webhookRequest.Events.Count, bodyBytes.Length, requestId);
-
-    // Process each event
-    foreach (var webhookEvent in webhookRequest.Events)
-    {
-        try
-        {
-            await ProcessWebhookEvent(webhookEvent, webhookRequest.Destination, queueService, lockService, replyService, cfg, log, requestId);
-        }
-        catch (Exception ex)
-        {
-            log.LogError(ex, "Error processing webhook event {WebhookEventId}, RequestId={RequestId}", 
-                webhookEvent.WebhookEventId, requestId);
-        }
-    }
-
-    return Results.Ok();
-});
-
-async Task ProcessWebhookEvent(WebhookEvent webhookEvent, string destination, ILocalQueueService queueService,
-    IUserLockService lockService, ILineReplyService replyService, IConfiguration cfg, ILogger log, string requestId)
-{
-    // Event filtering - only process text message events that are not in standby mode
-    if (!WebhookHelper.ShouldProcessEvent(webhookEvent))
-    {
-        log.LogDebug("Ignoring event type={Type}, mode={Mode}, messageType={MessageType}, WebhookEventId={WebhookEventId}, RequestId={RequestId}", 
-            webhookEvent.Type, webhookEvent.Mode, webhookEvent.Message?.Type, webhookEvent.WebhookEventId, requestId);
-        return;
-    }
-
-    var userKey = WebhookHelper.GetUserKey(webhookEvent.Source);
-    var isRedelivery = webhookEvent.DeliveryContext?.IsRedelivery ?? false;
-
-    log.LogInformation("Processing message event from {UserKey}, WebhookEventId={WebhookEventId}, IsRedelivery={IsRedelivery}, RequestId={RequestId}", 
-        userKey, webhookEvent.WebhookEventId, isRedelivery, requestId);
-
-    // User-level locking
-    if (!lockService.TryAcquireLock(userKey))
-    {
-        // User is locked (another message in flight)
-        var enableLockedReply = cfg.GetValue<bool>("Lock:EnableLockedReply", true);
-        if (enableLockedReply)
-        {
-            var lockedMessages = WebhookHelper.GetRandomMessages(cfg, "Lock:LockedMessages", 1);
-            await replyService.SendReplyAsync(webhookEvent.ReplyToken!, lockedMessages, 
-                webhookEvent.WebhookEventId, isRedelivery);
-        }
-        
-        log.LogInformation("User {UserKey} is locked, sent locked message, WebhookEventId={WebhookEventId}, RequestId={RequestId}", 
-            userKey, webhookEvent.WebhookEventId, requestId);
-        return;
-    }
-
-    // Queue capacity check
-    var replyQueueMaxSize = cfg.GetValue<int>("Reply:QueueMaxSize", 15);
-    if (queueService.Count >= replyQueueMaxSize)
-    {
-        // Queue is full, send busy message
-        var busyMessages = WebhookHelper.GetRandomMessages(cfg, "Reply:QueueFullMessages", 1);
-        await replyService.SendReplyAsync(webhookEvent.ReplyToken!, busyMessages, 
-            webhookEvent.WebhookEventId, isRedelivery);
-        
-        // Release the lock since we're not queuing
-        lockService.ReleaseLock(userKey);
-        
-        log.LogInformation("Queue is full ({QueueSize}/{MaxSize}), sent busy message, WebhookEventId={WebhookEventId}, RequestId={RequestId}", 
-            queueService.Count, replyQueueMaxSize, webhookEvent.WebhookEventId, requestId);
-        return;
-    }
-
-    // Enqueue for processing
-    var queueItem = new QueueItem
-    {
-        WebhookEventId = webhookEvent.WebhookEventId,
-        ReplyToken = webhookEvent.ReplyToken!,
-        UserKey = userKey,
-        MessageText = webhookEvent.Message!.Text!,
-        IsRedelivery = isRedelivery,
-        QueuedAt = DateTime.UtcNow
-    };
-
-    if (cfg.GetValue<string>("Chat:ApiVersion", "0.1") == "0.2")
-    {
-        queueItem.InteractionId = Guid.NewGuid().ToString();
-        queueItem.ChannelType = "line";
-        queueItem.ChannelInstanceId = destination;
-        queueItem.ActorId = "line-user-" + webhookEvent.Source.UserId;
-        queueItem.CharacterId = cfg["Character:Id"] ?? string.Empty;
-        queueItem.InputMessageId = Guid.NewGuid().ToString();
-    }
-
-    if (queueService.TryEnqueue(queueItem))
-    {
-        log.LogInformation("Enqueued message for processing, WebhookEventId={WebhookEventId}, QueueSize={QueueSize}, RequestId={RequestId}", 
-            webhookEvent.WebhookEventId, queueService.Count, requestId);
-    }
-    else
-    {
-        // Failed to enqueue, send busy message and release lock
-        var busyMessages = WebhookHelper.GetRandomMessages(cfg, "Reply:QueueFullMessages", 1);
-        await replyService.SendReplyAsync(webhookEvent.ReplyToken!, busyMessages, 
-            webhookEvent.WebhookEventId, isRedelivery);
-        
-        lockService.ReleaseLock(userKey);
-        
-        log.LogWarning("Failed to enqueue message, sent busy message, WebhookEventId={WebhookEventId}, RequestId={RequestId}", 
-            webhookEvent.WebhookEventId, requestId);
-    }
+    app.MapPost("/line/webhook/{connection_id}", (
+        HttpRequest request,
+        string connection_id,
+        [Microsoft.Extensions.DependencyInjection.FromKeyedServices("0.2")] IConnectionManagementClient connections,
+        ILineEventFilter filter,
+        ILineWebhookEventQueue queue,
+        ILineReplyService reply,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        ReceiveWebhookAsync(request, connection_id, version, connections, filter, queue, reply, configuration,
+            loggerFactory.CreateLogger("Webhook"), cancellationToken));
 }
 
 app.Run();
 
-public partial class Program
+static async Task<IResult> ReceiveWebhookAsync(
+    HttpRequest request,
+    string? connectionId,
+    string contractVersion,
+    IConnectionManagementClient connections,
+    ILineEventFilter filter,
+    ILineWebhookEventQueue queue,
+    ILineReplyService reply,
+    IConfiguration configuration,
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
+    var selectedConnection = await connections.GetConnectionAsync(connectionId, cancellationToken);
+    if (selectedConnection is null ||
+        (contractVersion == "0.2" && selectedConnection.Id != connectionId))
+    {
+        logger.LogWarning("LINE connection lookup failed for connection {ConnectionId}", connectionId);
+        return Results.StatusCode(StatusCodes.Status502BadGateway);
+    }
+
+    using var body = new MemoryStream();
+    await request.Body.CopyToAsync(body, cancellationToken);
+    var bodyBytes = body.ToArray();
+    request.Headers.TryGetValue("X-Line-Signature", out var signature);
+    VerifiedLineWebhook? verified;
+    try
+    {
+        if (!VerifiedLineWebhook.TryCreate(bodyBytes, signature.FirstOrDefault(),
+                selectedConnection.ChannelSecret, out verified))
+        {
+            logger.LogWarning("Missing or invalid X-Line-Signature");
+            return Results.BadRequest("missing or invalid signature");
+        }
+    }
+    catch (System.Text.Json.JsonException ex)
+    {
+        logger.LogWarning(ex, "Invalid webhook JSON");
+        return Results.BadRequest("invalid JSON");
+    }
+
+    IReadOnlyList<QueueItem> items;
+    try
+    {
+        items = verified!.SplitEvents(contractVersion == "0.2" ? connectionId : null);
+    }
+    catch (System.Text.Json.JsonException ex)
+    {
+        logger.LogWarning(ex, "Invalid webhook JSON");
+        return Results.BadRequest("invalid JSON");
+    }
+
+    foreach (var item in items)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!await filter.IsTargetAsync(item, cancellationToken))
+            continue;
+
+        var result = await queue.TryEnqueueAsync(item, cancellationToken);
+        if (result == QueueWriteResult.Accepted)
+            continue;
+
+        var fullMessages = configuration.GetSection("Reply:QueueFullMessages").Get<List<string>>();
+        if (fullMessages is { Count: > 0 })
+        {
+            var webhookEvent = item.Webhook.GetProperty("event");
+            var replyToken = webhookEvent.GetProperty("replyToken").GetString()!;
+            var eventId = webhookEvent.TryGetProperty("webhookEventId", out var id) ? id.GetString() ?? string.Empty : string.Empty;
+            var replyContext = new LineReplyContext(
+                new LineReplyToken(replyToken),
+                selectedConnection.AccessToken,
+                eventId);
+            await reply.SendReplyAsync(replyContext, new List<string> { fullMessages[Random.Shared.Next(fullMessages.Count)] }, cancellationToken);
+        }
+    }
+    return Results.Ok();
 }
+
+public partial class Program { }
