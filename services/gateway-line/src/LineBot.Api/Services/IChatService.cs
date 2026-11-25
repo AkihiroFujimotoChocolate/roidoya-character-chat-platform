@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-using LineBot.Api.Models;
+using LineBot.Api.Chat;
 
-namespace LineBot.Api.Services;
+namespace LineBot.Api.Chat;
 
-public interface IChatService
+public interface IChatService<TRequest>
+    where TRequest : class, IChatServiceRequest
 {
-    Task<ChatServiceResult> GenerateReplyAsync(ChatServiceRequest request, CancellationToken cancellationToken = default);
+    Task<ChatServiceResult> GenerateReplyAsync(
+        TRequest request, CancellationToken cancellationToken = default);
 }
