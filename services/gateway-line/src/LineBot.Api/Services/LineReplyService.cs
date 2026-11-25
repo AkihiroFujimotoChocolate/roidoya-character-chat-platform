@@ -1,101 +1,68 @@
 // SPDX-License-Identifier: MIT
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using LineBot.Api.Models;
+using LineBot.Api.Processing;
 
 namespace LineBot.Api.Services;
 
-public interface ILineReplyService
+public sealed class LineReplyService : ILineReplyService
 {
-    Task<bool> SendReplyAsync(string replyToken, List<string> messages, string webhookEventId, bool isRedelivery, CancellationToken cancellationToken = default);
-}
-
-public class LineReplyService : ILineReplyService
-{
+    private const string ReplyEndpoint = "https://api.line.me/v2/bot/message/reply";
     private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<LineReplyService> _logger;
-    private readonly string _channelAccessToken;
-    private readonly JsonSerializerOptions _jsonOptions;
 
-    public LineReplyService(HttpClient httpClient, IConfiguration configuration, ILogger<LineReplyService> logger)
+    public LineReplyService(HttpClient httpClient, ILogger<LineReplyService> logger)
     {
         _httpClient = httpClient;
-        _configuration = configuration;
         _logger = logger;
-        _channelAccessToken = configuration["Line:ChannelAccessToken"] ?? throw new InvalidOperationException("Line:ChannelAccessToken not configured");
-        
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false
-        };
-
-        // Configure HttpClient
-        _httpClient.BaseAddress = new Uri("https://api.line.me/");
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_channelAccessToken}");
     }
 
-    public async Task<bool> SendReplyAsync(string replyToken, List<string> messages, string webhookEventId, bool isRedelivery, CancellationToken cancellationToken = default)
+    public async Task<bool> SendReplyAsync(
+        LineReplyContext context,
+        List<string> messages,
+        CancellationToken cancellationToken = default)
     {
+        if (messages.Count is 0 or > 5)
+        {
+            _logger.LogWarning("LINE reply message count is outside the supported range {MessageCount}, WebhookEventId={WebhookEventId}",
+                messages.Count, context.WebhookEventId);
+            return false;
+        }
+
+        var requestBody = new LineReplyRequest
+        {
+            ReplyToken = context.ReplyToken.Value,
+            Messages = messages.Select(text => new LineMessage { Type = "text", Text = text }).ToList()
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, ReplyEndpoint)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(requestBody,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }), Encoding.UTF8, "application/json")
+        };
+        request.Content.Headers.ContentType!.CharSet = "utf-8";
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", context.ChannelAccessToken.Value);
+
         try
         {
-            // Check message count limit (≤5 messages per reply)
-            if (messages.Count > 5)
-            {
-                _logger.LogError("messages_over_batch_limit: Attempted to send {MessageCount} messages, limit=5. WebhookEventId={WebhookEventId}, IsRedelivery={IsRedelivery}", 
-                    messages.Count, webhookEventId, isRedelivery);
-                return false;
-            }
-
-            if (messages.Count == 0)
-            {
-                _logger.LogWarning("No messages to send for WebhookEventId={WebhookEventId}", webhookEventId);
-                return false;
-            }
-
-            var lineMessages = messages.Select(text => new LineMessage { Type = "text", Text = text }).ToList();
-            var request = new LineReplyRequest
-            {
-                ReplyToken = replyToken,
-                Messages = lineMessages
-            };
-
-            var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-            _logger.LogInformation("Sending reply with {MessageCount} messages for WebhookEventId={WebhookEventId}, IsRedelivery={IsRedelivery}", 
-                messages.Count, webhookEventId, isRedelivery);
-
-            var response = await _httpClient.PostAsync("v2/bot/message/reply", content, cancellationToken);
-
-            if (response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation("Successfully sent reply for WebhookEventId={WebhookEventId}, IsRedelivery={IsRedelivery}", 
-                    webhookEventId, isRedelivery);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.OK)
                 return true;
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                var tokenHash = GetReplyTokenHash(replyToken);
-                
-                _logger.LogError("reply_token_invalid_or_expired: Failed to send reply. WebhookEventId={WebhookEventId}, IsRedelivery={IsRedelivery}, TokenHash={TokenHash}, StatusCode={StatusCode}, Error={Error}", 
-                    webhookEventId, isRedelivery, tokenHash, response.StatusCode, errorContent);
-                return false;
-            }
+            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning("LINE reply failed, StatusCode={StatusCode}, WebhookEventId={WebhookEventId}, Error={Error}",
+                response.StatusCode, context.WebhookEventId, detail);
+            return false;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception while sending reply for WebhookEventId={WebhookEventId}, IsRedelivery={IsRedelivery}", 
-                webhookEventId, isRedelivery);
+            _logger.LogError(ex, "LINE reply failed, WebhookEventId={WebhookEventId}", context.WebhookEventId);
             return false;
         }
-    }
-
-    private string GetReplyTokenHash(string replyToken)
-    {
-        // Return last 8 characters for logging (avoid logging full token)
-        return replyToken.Length > 8 ? $"...{replyToken.Substring(replyToken.Length - 8)}" : replyToken;
     }
 }
