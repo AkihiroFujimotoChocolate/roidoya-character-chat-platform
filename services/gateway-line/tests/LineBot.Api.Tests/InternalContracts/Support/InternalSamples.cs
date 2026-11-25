@@ -1,3 +1,4 @@
+#if !PHASE2_GATEWAY_TESTS
 // SPDX-License-Identifier: MIT
 using Microsoft.Extensions.Configuration;
 
@@ -14,3 +15,5 @@ internal static class InternalSamples
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 }
+
+#endif

@@ -1,3 +1,4 @@
+#if !PHASE2_GATEWAY_TESTS
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Services;
 using LineBot.Api.Tests.Support;
@@ -62,3 +63,5 @@ internal sealed class ProductionGatewayFactory : WebApplicationFactory<global::P
         }
     }
 }
+
+#endif

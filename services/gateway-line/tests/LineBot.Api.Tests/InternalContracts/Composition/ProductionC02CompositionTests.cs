@@ -1,3 +1,4 @@
+#if !PHASE2_GATEWAY_TESTS
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Services;
 using LineBot.Api.Tests.Support;
@@ -38,3 +39,4 @@ public sealed class ProductionC02CompositionTests : DiagnosticTest
         Assert.Empty(factory.ChatHttp.Requests); Assert.Empty(factory.LineHttp.Requests);
     }
 }
+#endif

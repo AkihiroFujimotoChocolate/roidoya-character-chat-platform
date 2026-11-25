@@ -21,8 +21,9 @@ internal sealed class CaptureHandler : HttpMessageHandler
     internal async Task<CapturedHttp> NextAsync()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        return await _seen.Reader.ReadAsync(deadline.Token);
+        return await NextAsync(deadline.Token);
     }
+    internal Task<CapturedHttp> NextAsync(CancellationToken token) => _seen.Reader.ReadAsync(token).AsTask();
     internal async Task AssertNoPendingRequestsAsync()
     {
         using var window = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));

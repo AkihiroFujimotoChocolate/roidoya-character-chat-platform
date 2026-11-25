@@ -1,3 +1,4 @@
+#if !PHASE2_GATEWAY_TESTS
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Models;
 using LineBot.Api.Services;
@@ -32,3 +33,5 @@ internal static class FlowSamples
         Create(GeneratedValues.Read<FlowValues>(valuesJson, "Text", "ConversationId", "PersonId",
             "EventId", "ReplyToken", "MessageId", "Destination", "Messages", "DefaultFallback"));
 }
+
+#endif

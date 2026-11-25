@@ -1,3 +1,19 @@
+#if PHASE2_GATEWAY_TESTS
+// SPDX-License-Identifier: MIT
+using System.Text.Json;
+using LineBot.Api.Tests.Support;
+
+namespace LineBot.Api.Tests.ExternalContracts.V01.Chat;
+
+internal static class ChatV01Samples
+{
+    internal const string DefaultFallback = "test-default-fallback";
+    internal const string TimeoutFallback = "test-timeout-fallback";
+    internal static HttpResponseMessage Ok(params string[] messages) =>
+        HttpResponses.Json(JsonSerializer.Serialize(new { request_id = "correlation-test", status = "ok", messages, fallback_used = false }));
+}
+
+#else
 // SPDX-License-Identifier: MIT
 using System.Text.Json;
 using LineBot.Api.Tests.Support;
@@ -11,3 +27,5 @@ internal static class ChatV01Samples
     internal static HttpResponseMessage Ok(params string[] messages) =>
         HttpResponses.Json(JsonSerializer.Serialize(new { request_id = "correlation-test", status = "ok", messages, fallback_used = false }));
 }
+
+#endif

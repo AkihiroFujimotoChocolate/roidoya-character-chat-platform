@@ -1,3 +1,90 @@
+#if PHASE2_GATEWAY_TESTS
+// SPDX-License-Identifier: MIT
+using LineBot.Api.Tests.Support;
+using LineBot.Api.Tests.ExternalContracts.V02.Chat;
+using LineBot.Api.Tests.ExternalContracts.V01.Line;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
+namespace LineBot.Api.Tests.ExternalContracts.V02.Support;
+
+// Uses the real Program; the caller can supply explicit service overrides.
+internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::Program>
+{
+    internal CaptureHandler Chat { get; }
+    internal CaptureHandler Line { get; }
+    internal Dictionary<string, string?> Settings { get; } = new() {
+        ["ContractVersion"] = "0.2",
+        ["Chat:Http:BaseUrl"] = "https://chat.test/",
+        ["App:BaseUrl"] = "https://app.test/",
+        ["Chat:Http:Endpoint"] = "/chat/v0.2/generate-replies",
+        ["Chat:RequestTimeoutSeconds"] = "1",
+        ["ConnectionManagement:Http:BaseUrl"] = "https://connections.test/",
+        ["Reply:QueueMaxSize"] = "15",
+        ["Local:Queue:MaxSize"] = "15"
+    };
+    internal Uri ChatUri { get; set; } = new("https://chat.test/chat/v0.2/generate-replies");
+    internal Uri GetUri { get; set; } = new("https://connections.test/channel/v0.2/get-connection");
+    internal Uri ActorUri { get; set; } = new("https://connections.test/channel/v0.2/resolve-actor");
+    internal bool UseEmptyQueueFullMessages { get; set; }
+    internal CaptureHandler Connections { get; }
+    internal CaptureHandler Unexpected { get; } = new((_, _) =>
+        Task.FromException<HttpResponseMessage>(new InvalidOperationException("Unexpected outbound URI.")));
+    private IHost? _host;
+    private Task? _stopping;
+    private readonly Action<IServiceCollection>? _configureTestServices;
+    internal GatewayApplicationFactory(CaptureHandler chat, CaptureHandler line, CaptureHandler connections, Action<IServiceCollection>? configureTestServices = null)
+    {
+        _configureTestServices = configureTestServices;
+        Chat = chat;
+        Line = line;
+        Connections = connections;
+    }
+    protected override IHost CreateHost(IHostBuilder builder) => _host = base.CreateHost(builder);
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+        builder.ConfigureAppConfiguration((_, config) => {
+            config.Sources.Clear();
+            config.AddInMemoryCollection(Settings);
+            if (UseEmptyQueueFullMessages)
+                config.AddJsonStream(new MemoryStream("""{"Reply":{"QueueFullMessages":[]}}"""u8.ToArray()));
+        });
+        builder.ConfigureTestServices(services => {
+            // Covers both named/typed and default HttpClient without naming a production service.
+            services.ConfigureAll<HttpClientFactoryOptions>(options => {
+                options.HttpClientActions.Add(client => client.Timeout = Timeout.InfiniteTimeSpan);
+                options.HttpMessageHandlerBuilderActions.Add(b => b.PrimaryHandler = new Router(this));
+            });
+            _configureTestServices?.Invoke(services);
+        });
+    }
+    internal Task StopHostAsync() => _stopping ??= StopAsync();
+
+    private async Task StopAsync()
+    {
+        if (_host is null) return;
+        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await _host.StopAsync(limit.Token);
+    }
+    private sealed class Router(GatewayApplicationFactory host) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            var uri = request.RequestUri;
+            var capture = uri == host.ChatUri ? host.Chat
+                : uri == host.GetUri || uri == host.ActorUri ? host.Connections
+                : uri?.Host == "api.line.me" ? host.Line : host.Unexpected;
+            using var transport = new HttpMessageInvoker(capture, disposeHandler: false);
+            return await transport.SendAsync(request, token);
+        }
+    }
+}
+#else
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Tests.Support;
 using LineBot.Api.Tests.ExternalContracts.V02.Chat;
@@ -74,3 +161,4 @@ internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::
         }
     }
 }
+#endif
