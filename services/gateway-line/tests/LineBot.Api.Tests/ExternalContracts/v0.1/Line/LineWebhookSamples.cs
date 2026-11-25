@@ -26,10 +26,22 @@ internal static class LineWebhookSamples
         }
         return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { destination, events = new[] { evt } }));
     }
+    internal static byte[] WebhookWithEvents(string destination, params byte[][] singleEventBodies)
+    {
+        var events = singleEventBodies.Select(body =>
+        {
+            using var json = JsonDocument.Parse(body);
+            return json.RootElement.GetProperty("events")[0].Clone();
+        }).ToArray();
+        return JsonSerializer.SerializeToUtf8Bytes(new { destination, events });
+    }
+
     internal static string Sign(byte[] bytes, string secret = Secret) =>
         Convert.ToBase64String(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), bytes));
-    internal static HttpRequestMessage Incoming(byte[] bytes, string? signature) {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/line/webhook")
+    internal static HttpRequestMessage Incoming(byte[] bytes, string? signature) => Incoming(bytes, signature, "/line/webhook");
+
+    internal static HttpRequestMessage Incoming(byte[] bytes, string? signature, string path) {
+        var request = new HttpRequestMessage(HttpMethod.Post, path)
         { Content = new ByteArrayContent(bytes) };
         request.Content.Headers.ContentType = new("application/json") { CharSet = "utf-8" };
         if (signature is not null) request.Headers.Add("X-Line-Signature", signature);

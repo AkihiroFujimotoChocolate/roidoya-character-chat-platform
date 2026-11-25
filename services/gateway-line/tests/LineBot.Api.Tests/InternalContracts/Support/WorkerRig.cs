@@ -1,3 +1,4 @@
+#if !PHASE2_GATEWAY_TESTS
 // SPDX-License-Identifier: MIT
 using System.Collections.Concurrent;
 using LineBot.Api.Models;
@@ -103,3 +104,5 @@ internal sealed class WorkerRig : IAsyncDisposable
         await StopAsync(); Worker.Dispose(); await _services.DisposeAsync();
     }
 }
+
+#endif

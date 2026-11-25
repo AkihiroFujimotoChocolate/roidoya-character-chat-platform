@@ -1,3 +1,4 @@
+#if !PHASE2_GATEWAY_TESTS
 // SPDX-License-Identifier: MIT
 using LineBot.Api.Models;
 using LineBot.Api.Services;
@@ -157,3 +158,4 @@ public sealed class WorkerC02InteractionTests : DiagnosticTest
             e.Message.Contains("Successfully processed", StringComparison.Ordinal));
     }
 }
+#endif

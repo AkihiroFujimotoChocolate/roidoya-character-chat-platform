@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework Condition="'$(EnablePhase2GatewayTests)' != 'true'">net8.0</TargetFramework>
+    <TargetFramework Condition="'$(EnablePhase2GatewayTests)' == 'true'">net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -9,7 +10,8 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" Condition="'$(EnablePhase2GatewayTests)' != 'true'" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" Condition="'$(EnablePhase2GatewayTests)' == 'true'" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
@@ -21,6 +23,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LineBot.Api\LineBot.Api.csproj" />
+  </ItemGroup>
+
+  <!-- Enable after integrating the phase-two gateway; use the property for restore, build, and test. -->
+  <PropertyGroup Condition="'$(EnablePhase2GatewayTests)' == 'true'">
+    <DefineConstants>$(DefineConstants);PHASE2_GATEWAY_TESTS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(EnablePhase2GatewayTests)' == 'true'">
+    <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="true" />
+    <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" Private="true" />
   </ItemGroup>
 
 </Project>
