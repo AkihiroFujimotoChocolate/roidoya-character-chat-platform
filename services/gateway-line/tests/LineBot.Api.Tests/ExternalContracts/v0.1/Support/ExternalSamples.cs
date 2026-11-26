@@ -21,10 +21,6 @@ internal static class ExternalSamples
     internal static ExternalValues FromJson(string json) => Fixed(
         GeneratedValues.Read<ExternalValues>(json, "Text", "PersonId", "EventId",
             "ReplyToken", "MessageId", "Destination", "ReplyText", "CharacterId", "OutputMessageId", "ConnectionId", "ActorId"));
-    internal static byte[] Body(this ExternalValues data, bool redelivery = false,
-        string mode = "active", string kind = "message", string messageKind = "text") =>
-        LineWebhookSamples.Webhook(redelivery, mode, kind, messageKind, data.Text, data.EventId,
-            data.PersonId, data.ReplyToken, data.MessageId, data.Destination);
 }
 
 #else

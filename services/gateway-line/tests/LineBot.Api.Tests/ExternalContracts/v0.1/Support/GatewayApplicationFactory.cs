@@ -46,7 +46,14 @@ internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::
         Line = line;
         Connections = connections;
     }
-    protected override IHost CreateHost(IHostBuilder builder) => _host = base.CreateHost(builder);
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        // Minimal hosting reads startup settings before ConfigureAppConfiguration runs.
+        // DeferredHostBuilder forwards host configuration as entry-point arguments.
+        builder.UseEnvironment("Testing");
+        builder.ConfigureHostConfiguration(config => config.AddInMemoryCollection(Settings));
+        return _host = base.CreateHost(builder);
+    }
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -161,3 +168,4 @@ internal sealed class GatewayApplicationFactory : WebApplicationFactory<global::
 
 
 #endif
+

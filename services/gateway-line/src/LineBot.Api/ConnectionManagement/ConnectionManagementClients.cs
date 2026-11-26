@@ -88,7 +88,8 @@ public abstract class ConnectionManagementClient : IConnectionManagementClient
         if (string.IsNullOrWhiteSpace(endpoint))
             endpoint = string.IsNullOrWhiteSpace(template) ? defaultTemplate : template;
         var path = endpoint!.Replace("{version}", $"v{_version}", StringComparison.Ordinal);
-        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute))
+        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute) &&
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
             return absolute.ToString();
 
         var effectiveBase = string.IsNullOrWhiteSpace(baseUrl) ? _configuration["App:BaseUrl"] : baseUrl;

@@ -28,10 +28,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore ./roidoya-character-platform.sln
+        run: dotnet restore ./roidoya-character-platform.sln -p:EnablePhase2GatewayTests=true
 
       - name: Build (Release)
-        run: dotnet build ./roidoya-character-platform.sln --configuration Release --no-restore
+        run: dotnet build ./roidoya-character-platform.sln --configuration Release --no-restore -p:EnablePhase2GatewayTests=true
 
       - name: Test (Release)
-        run: dotnet test ./roidoya-character-platform.sln --configuration Release --no-build --logger "console;verbosity=normal"
+        run: dotnet test ./roidoya-character-platform.sln --configuration Release --no-build -p:EnablePhase2GatewayTests=true --logger "console;verbosity=normal"

@@ -78,7 +78,8 @@ public sealed class HttpChatService : IChatService<ChatServiceRequest>
             ? (string.IsNullOrWhiteSpace(template) ? "/chat/{version}/generate-replies" : template)
             : endpoint;
         path = path!.Replace("{version}", "v0.2", StringComparison.Ordinal);
-        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute))
+        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute) &&
+            (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
             return absolute.ToString();
         var baseUrl = _configuration["Chat:Http:BaseUrl"];
         if (string.IsNullOrWhiteSpace(baseUrl))
