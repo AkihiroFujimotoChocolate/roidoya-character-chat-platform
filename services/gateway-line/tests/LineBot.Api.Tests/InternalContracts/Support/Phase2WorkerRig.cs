@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 using System.Collections.Concurrent;
 using LineBot.Api.Chat;
+using IIdempotencyService = LineBot.Api.Services.IIdempotencyService;
 using LineBot.Api.Processing;
 using LineBot.Api.Queueing;
 using LineBot.Api.Workers;
@@ -118,6 +119,25 @@ internal sealed class ReplyBoundaryDouble : ILineReplyService
     }
 }
 
+internal sealed class IdempotencyDouble : IIdempotencyService
+{
+    internal ConcurrentQueue<(string Operation, string EventId)> Calls { get; } = new();
+    internal Func<string, bool> Check { get; init; } = _ => false;
+    internal Action<string> Registered { get; init; } = _ => { };
+
+    public bool IsProcessed(string webhookEventId)
+    {
+        Calls.Enqueue(("check", webhookEventId));
+        return Check(webhookEventId);
+    }
+
+    public void MarkAsProcessed(string webhookEventId)
+    {
+        Calls.Enqueue(("mark", webhookEventId));
+        Registered(webhookEventId);
+    }
+}
+
 internal sealed class Phase2WorkerRig : IAsyncDisposable
 {
     private readonly ServiceProvider _services;
@@ -130,6 +150,7 @@ internal sealed class Phase2WorkerRig : IAsyncDisposable
         var services = new ServiceCollection();
         services.AddSingleton<ILineWebhookEventQueue>(Queue);
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<MessageWorkerService>>(Logs.For<MessageWorkerService>());
+        services.AddSingleton<IIdempotencyService>(new IdempotencyDouble());
         configure(services);
         _services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         Worker = ActivatorUtilities.CreateInstance<MessageWorkerService>(_services);
