@@ -28,3 +28,8 @@ and one text content part. Missing text returns HTTP 400 with error.code bad_req
 The v0.1 API path is not registered. Version headers are optional.
 Only the listening port is logged; request bodies and credentials are not logged.
 The injected errors are smoke-tool behavior for observing the Gateway.
+
+
+Malformed JSON returns a constant error response without logging the parser error.
+The server binds to 0.0.0.0 and validates PORT (default 8080). Keep it on a local
+container network; only the Gateway webhook should be tunneled.

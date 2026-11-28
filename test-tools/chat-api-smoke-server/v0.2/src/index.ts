@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
 import { randomUUID } from "node:crypto";
 
 type ChatRequest = {
@@ -59,5 +59,21 @@ app.post("/chat/v0.2/generate-replies", async (req, res) => {
   return res.status(200).json(ok);
 });
 
-const port = process.env.PORT || 8080;
-app.listen(port, () => console.log(`chat-layer echo listening on ${port}`));
+// JSON parser errors can contain the request body. Do not pass them to the default logger.
+const handleError: ErrorRequestHandler = (_error, _req, res, _next) => {
+  res.status(400).json({ error: "invalid_request" });
+};
+app.use(handleError);
+
+const portText = process.env.PORT ?? "8080";
+const port = Number(portText);
+if (!/^\d+$/.test(portText) || !Number.isInteger(port) || port < 1 || port > 65535) {
+  console.error("Smoke server startup failed: check PORT.");
+  process.exit(1);
+}
+app.listen(port, "0.0.0.0", () => console.log(`chat-layer echo listening on ${port}`))
+  .on("error", () => {
+    console.error("Smoke server could not listen on the configured port.");
+    process.exit(1);
+  });
+
